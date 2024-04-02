@@ -36,8 +36,10 @@ public:
 	void Logic();
 
 	void Send();
+
+	CHAR recvBuf[BUFSIZE];
 	void Recv();
-	CHAR* GetRecvBuffer();
+	vector<BYTE> GetRecvBuffer();
 
 	void SendReserve(void* data, size_t size);
 	void ResetSendList();

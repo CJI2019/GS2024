@@ -1,6 +1,7 @@
 #pragma once
 
 struct PlayerInfo {
+	int id;
 	POINT pos;
 };
 
@@ -11,7 +12,7 @@ public:
     virtual void Draw(HDC& hdc, int rectSize) const = 0;
 	virtual void Move(DWORD Dir,float elapsedTime) = 0;
 
-	void SetPosition(POINT& pos) {
+	void SetPosition(POINT pos) {
 		m_Pos.x = pos.x;
 		m_Pos.y = pos.y;
 	}

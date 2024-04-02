@@ -6,7 +6,8 @@
 #include <cassert>
 #pragma comment (lib,"WS2_32.LIB")
 
-constexpr char SERVER_ADDR[] = "127.0.0.1";
+#define serverFramework Server::GetInstance()
+
 constexpr short SERVER_PORT = 4000;
 constexpr int BUFSIZE = 256;
 
@@ -18,35 +19,39 @@ enum class GameCommandList : BYTE {
 	MOVE
 };
 
-
 class ClientInfo;
+struct PlayerInfo;
 
 class Server
 {
-public:
+private:
 	Server();
+public:
+	static Server& GetInstance() {
+		static Server instance; // 정적 변수로 인스턴스를 유지, 지연 초기화
+		return instance;
+	}
 	~Server();
 
-	// 서버에서 데이터를 주고받는 작업을 하는 함수
-	void Logic();
-	void ClientExit(int id);
+	void Init();
+	void Accept();
 
-	int Send(ClientInfo& info);
-	int Recv(ClientInfo& info);
-	void error_display(const char* msg, int err_no);
+	void ClientExit(LPWSAOVERLAPPED wsaover);
+	static void error_display(const char* msg, int err_no);
 
-	void ResetSendList();
 
-	void AssembleDataFromBytes(ClientInfo& info);
-
-	void PackDataToBytes(ClientInfo& info);
-
+	void WriteToBuffer(vector<BYTE>& buffer,void* data, size_t size);
 protected:
 	SOCKET m_ListenSock;
-	unordered_map<int, ClientInfo> m_client_Infos;
+	unordered_map<LPWSAOVERLAPPED, ClientInfo> m_umClientInfos;
 	UINT m_iClient_count = 0; //접속한 개수가 아닌 접속했던 클라의 개수
 
-	WSABUF wsabuf[1];
-	vector<BYTE> m_SendReserveList;
 	vector<BYTE> m_CmdList;
+
+	vector<PlayerInfo*> m_playerinfos;
+public:
+	unordered_map<LPWSAOVERLAPPED, ClientInfo>& GetClientInfos() { return m_umClientInfos; }
+
+	void WriteServerBuffer(vector<BYTE>& buffer, PlayerInfo* playerinfo);
+	
 };

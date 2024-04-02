@@ -46,6 +46,16 @@ void GameFrameWork::KeyInput(float elapsedTime)
 
 }
 
+void GameFrameWork::AddPlayerObject()
+{
+	m_vSceneObject.push_back(make_unique<Player>());
+}
+
+void GameFrameWork::DelPlayerObject()
+{
+	m_vSceneObject.erase(m_vSceneObject.end() - 1);
+}
+
 void GameFrameWork::Update(float elapsedTime)
 {
 	serverFramework.Logic();
@@ -55,13 +65,42 @@ void GameFrameWork::Update(float elapsedTime)
 
 void GameFrameWork::WriteData()
 {
-	CHAR* buf = serverFramework.GetRecvBuffer();
+	vector<BYTE> buffer = serverFramework.GetRecvBuffer();
 
-	PlayerInfo playerinfo;
-	memcpy(&playerinfo, buf, sizeof(PlayerInfo));
-	m_vSceneObject[m_playerId]->SetPosition(playerinfo.pos);
+	BYTE playercount;
+	memcpy(&playercount, buffer.data(), sizeof(BYTE));
+	buffer.erase(buffer.begin(), buffer.begin() + sizeof(BYTE));
 
+	PlayerInfo* playerinfo = new PlayerInfo[playercount];
+
+	int stride = sizeof(int);
+	for (int i = 0; i < playercount;++i) {
+		memcpy(&playerinfo[i], buffer.data(), sizeof(PlayerInfo));
+		buffer.erase(buffer.begin(), buffer.begin() + sizeof(PlayerInfo));
+	}
+
+	if (playercount != m_vSceneObject.size()) {
+		while (true)
+		{
+			if (playercount == m_vSceneObject.size()) {
+				break;
+			}
+			if (playercount > m_vSceneObject.size()) {
+				AddPlayerObject();
+			}
+			else {
+				DelPlayerObject();
+			}
+		}
+	}
+	for (int i = 0;i < playercount;++i){
+		m_vSceneObject[i]->SetPosition(playerinfo[i].pos);
+	}
+
+
+	delete[] playerinfo;
 }
+
 
 POINT** GameFrameWork::GetPanPosition()
 {
