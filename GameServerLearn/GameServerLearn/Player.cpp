@@ -1,3 +1,4 @@
+#pragma once
 #include "stdafx.h"
 #include "Player.h"
 #include "GameFrameWork.h"
@@ -46,32 +47,27 @@ void Player::Move(DWORD Dir,float elapsedTime)
         m_fMoveLimit -= elapsedTime;
         return;
     }
-    POINT curPos = GetPosition();
 
+    PlayerMoveDir p_Dir = PlayerMoveDir::NONE;
     // 플레이어는 한칸씩만 움직임.
     if (Dir & DIR_RIGHT) {
-        BYTE cmd = (BYTE)GameCommandList::MOVE;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
-        cmd = (BYTE)PlayerMoveDir::RIGHT;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
+        p_Dir = PlayerMoveDir::RIGHT;
     }
     else if (Dir & DIR_LEFT) {
-        BYTE cmd = (BYTE)GameCommandList::MOVE;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
-        cmd = (BYTE)PlayerMoveDir::LEFT;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
+        p_Dir = PlayerMoveDir::LEFT;
     }
     else if (Dir & DIR_UP) {
-        BYTE cmd = (BYTE)GameCommandList::MOVE;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
-        cmd = (BYTE)PlayerMoveDir::UP;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
+        p_Dir = PlayerMoveDir::UP;
     }
     else if (Dir & DIR_DOWN) {
-        BYTE cmd = (BYTE)GameCommandList::MOVE;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
-        cmd = (BYTE)PlayerMoveDir::DOWN;
-        serverFramework.SendReserve(&cmd, sizeof(BYTE));
+        p_Dir = PlayerMoveDir::DOWN;
+    }
+
+    if (p_Dir != PlayerMoveDir::NONE) {
+        CS_MOVE_PACKET packet;
+        packet.size = sizeof(CS_MOVE_PACKET);
+        packet.Dir = p_Dir;
+        serverFramework.SendReserve(&packet, packet.size);
     }
 
     m_fMoveLimit = 0.05f;

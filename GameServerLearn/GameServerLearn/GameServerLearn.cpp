@@ -1,5 +1,5 @@
-﻿// GameServerLearn.cpp : 애플리케이션에 대한 진입점을 정의합니다.
-//
+﻿#pragma once
+#include "stdafx.h"
 #include "GameServerLearn.h"
 #include "stdafx.h"
 #include "Player.h"
@@ -227,6 +227,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             // 오브젝트 그리기
             for (auto& object : gGameFrameWork.GetSceneObjects()) {
+                if (object->GetId() == -1) continue;
                 object->Draw(MemDC, rectSize);
             }
 

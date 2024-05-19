@@ -1,3 +1,4 @@
+#pragma once
 #include "stdafx.h"
 #include "GameFrameWork.h"
 #include "Server.h"
@@ -12,9 +13,11 @@ GameFrameWork::GameFrameWork()
 			PanPosition[i] = new POINT[ROW_X];
 		}
 	}
-
-	m_vSceneObject.push_back(make_unique<Player>());
-
+	m_vSceneObject.reserve(MAX_USER);
+	//m_vSceneObject.push_back(make_unique<Player>());
+	for (int i = 0; i < MAX_USER;++i) {
+		m_vSceneObject.emplace_back(make_unique<Player>());
+	}
 }
 
 GameFrameWork::~GameFrameWork()
@@ -31,6 +34,10 @@ GameFrameWork::~GameFrameWork()
 
 void GameFrameWork::KeyInput(float elapsedTime)
 {
+	if (m_playerId == -1) {
+		return;
+	}
+
 	static UCHAR pKeysBuffer[256];
 	
 	if (GetKeyboardState(pKeysBuffer)) {
@@ -45,10 +52,24 @@ void GameFrameWork::KeyInput(float elapsedTime)
 	}
 
 }
-
-void GameFrameWork::AddPlayerObject()
+int cnt = 0;
+void GameFrameWork::AddPlayerObject(void* buffer)
 {
-	m_vSceneObject.push_back(make_unique<Player>());
+	cnt++;
+	SC_ADD_PLAYER_PACKET* packet = reinterpret_cast<SC_ADD_PLAYER_PACKET*>(buffer);
+
+	//int newId = -1;
+	//for (auto& so : m_vSceneObject) {
+	//	if (so->GetId() != -1) continue;
+	//	newId = so->GetId();
+	//	break;
+	//}
+	//if (newId == -1) { // 남은 자리가 없음 추가 불가능
+	//	return;
+	//}
+	int newId = packet->id;
+	m_vSceneObject[newId]->SetId(packet->id);
+	m_vSceneObject[newId]->SetPosition(packet->pos);
 }
 
 void GameFrameWork::DelPlayerObject()
@@ -59,46 +80,54 @@ void GameFrameWork::DelPlayerObject()
 void GameFrameWork::Update(float elapsedTime)
 {
 	serverFramework.Logic();
+
 	WriteData();
+
 	KeyInput(elapsedTime);
 }
 
 void GameFrameWork::WriteData()
 {
-	vector<BYTE> buffer = serverFramework.GetRecvBuffer();
+	auto buffer = serverFramework.GetRecvBuffer();
 
-	BYTE playercount;
-	memcpy(&playercount, buffer.data(), sizeof(BYTE));
-	buffer.erase(buffer.begin(), buffer.begin() + sizeof(BYTE));
-
-	PlayerInfo* playerinfo = new PlayerInfo[playercount];
-
-	int stride = sizeof(int);
-	for (int i = 0; i < playercount;++i) {
-		memcpy(&playerinfo[i], buffer.data(), sizeof(PlayerInfo));
-		buffer.erase(buffer.begin(), buffer.begin() + sizeof(PlayerInfo));
-	}
-
-	if (playercount != m_vSceneObject.size()) {
-		while (true)
+	while (buffer[0] != 0)
+	{
+		switch (GameCommand_Type(buffer[1]))
 		{
-			if (playercount == m_vSceneObject.size()) {
-				break;
-			}
-			if (playercount > m_vSceneObject.size()) {
-				AddPlayerObject();
-			}
-			else {
-				DelPlayerObject();
-			}
+		case GameCommand_Type::NONE: {
+			SC_NONE_TYPE_PACKET packet;
+			memcpy(&packet, buffer.data(), sizeof(SC_NONE_TYPE_PACKET));
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_NONE_TYPE_PACKET));
+			break;
+		}
+		case GameCommand_Type::LOGIN: {
+			SC_LOGIN_PACKET* packet = reinterpret_cast<SC_LOGIN_PACKET*>(buffer.data());
+			m_playerId = packet->id; // 메인 클라이언트 Id Set
+			m_vSceneObject[m_playerId]->SetId(packet->id);
+			m_vSceneObject[m_playerId]->SetPosition(packet->pos);
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_LOGIN_PACKET));
+			break;
+		}
+		case GameCommand_Type::MOVE: {
+			SC_MOVE_PLAYER_PACKET* packet = reinterpret_cast<SC_MOVE_PLAYER_PACKET*>(buffer.data());
+			m_vSceneObject[packet->id]->SetPosition(packet->pos);
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_MOVE_PLAYER_PACKET));
+			break;
+		}
+		case GameCommand_Type::ADD_PLAYER: {
+			AddPlayerObject(buffer.data());
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_ADD_PLAYER_PACKET));
+			break;
+		}
+		default:
+			break;
+		}
+
+		if (buffer.size() == 0) {
+			break;
 		}
 	}
-	for (int i = 0;i < playercount;++i){
-		m_vSceneObject[i]->SetPosition(playerinfo[i].pos);
-	}
-
-
-	delete[] playerinfo;
+	serverFramework.InitBuffer();
 }
 
 

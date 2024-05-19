@@ -1,15 +1,41 @@
+#pragma once
+#include "stdafx.h"
+
 #include "Server.h"
 #include "Player.h"
 
+#include <io.h>
+#include <fcntl.h>
+
 const char* IP_ADDRESS = "127.0.0.1";
+
+void RedirectIOToConsole() {
+	AllocConsole();
+
+	// Redirect standard input, output, and error streams to the console
+	FILE* fp;
+	freopen_s(&fp, "CONIN$", "r", stdin);
+	freopen_s(&fp, "CONOUT$", "w", stdout);
+	freopen_s(&fp, "CONOUT$", "w", stderr);
+
+	// Set the console output code page to UTF-8 (for compatibility)
+	SetConsoleOutputCP(CP_UTF8);
+
+	// Synchronize C++ and C output streams
+	std::ios::sync_with_stdio();
+
+	// Set locale to the user's default locale
+	std::locale::global(std::locale(""));
+
+	// Enable wide character mode for console output
+	_setmode(_fileno(stdout), _O_U16TEXT);
+	_setmode(_fileno(stderr), _O_U16TEXT);
+	_setmode(_fileno(stdin), _O_U16TEXT);
+}
 
 Server::Server()
 { 
-	//AllocConsole();
-	//// 새로운 콘솔 창이 생성되었으므로 표준 입력/출력을 콘솔로 변경합니다.
-	//freopen("CONIN$", "r", stdin);
-	//freopen("CONOUT$", "w", stdout);
-
+	//RedirectIOToConsole();
 	//cout << "Server IP를 입력해주세요 : ";
 	//char IP_char[256];
 	//cin >> IP_char;
@@ -18,22 +44,37 @@ Server::Server()
 	WSADATA wsa_data;
 	WSAStartup(MAKEWORD(2, 2), &wsa_data);
 
-	m_ServerSock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, 0);
+	m_Sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, WSA_FLAG_OVERLAPPED);
+
+	if (m_Sock == INVALID_SOCKET) {
+		error_display("WSARecv Error : ", WSAGetLastError());
+		WSACleanup();
+		assert(0);
+	}
+
 	SOCKADDR_IN addr_s;
 	addr_s.sin_family = AF_INET;
 	addr_s.sin_port = htons(SERVER_PORT);
 	inet_pton(AF_INET, IP_ADDRESS, &addr_s.sin_addr);
 
-	int res = connect(m_ServerSock, reinterpret_cast<sockaddr*>(&addr_s), sizeof(addr_s));
+
+	int res = connect(m_Sock, reinterpret_cast<sockaddr*>(&addr_s), sizeof(addr_s));
 	if (res != 0) {
 		error_display("WSARecv Error : ", WSAGetLastError());
 		assert(0);
 	}
+	u_long mode = 1; //non-blocking mode
+	ioctlsocket(m_Sock, FIONBIO, &mode);
+
+	CS_LOGIN_PACKET packet;
+	packet.size = sizeof(CS_LOGIN_PACKET);
+	SendReserve(&packet, sizeof(CS_LOGIN_PACKET));
+
 }
 
 Server::~Server()
 {
-	closesocket(m_ServerSock);
+	closesocket(m_Sock);
 	WSACleanup();
 }
 
@@ -45,53 +86,70 @@ void Server::Logic()
 
 void Server::Send()
 {
-	if (m_SendReserveList.size() == 0) {
-		GameCommandList cmd = GameCommandList::NONE; // 보낼데이터가 존재하지 않더라도 데이터를 보냄.
-		SendReserve(&cmd, sizeof(BYTE));
-	}
 	CHAR buf[BUFSIZE];
+	if (m_SendReserveList.size() == 0) {
+		return;
+	}
 	memcpy(buf, m_SendReserveList.data(), m_SendReserveList.size());
-	
-	wsabuf[0].buf = buf;
-	wsabuf[0].len = static_cast<ULONG>(m_SendReserveList.size());
+
+	//over->SetSendPacket(buf);
+	OVER_ALLOC* over = new OVER_ALLOC(buf);
+
 	DWORD send_size;
-	int res = WSASend(m_ServerSock, wsabuf, 1, &send_size, 0, nullptr, nullptr);
+	int res = WSASend(m_Sock, &over->m_wsabuf, 1, &send_size, 0, &over->over, nullptr);
+
 	if (res != 0) {
 		error_display("WSASend Error : ", WSAGetLastError());
-		exit(0);
-		//assert(0);
+		assert(0);
 	}
+	delete over;
+
 	ResetSendList();
 }
 
 void Server::Recv()
 {
-	wsabuf[0].buf = recvBuf;
-	wsabuf[0].len = BUFSIZE; // 데이터 사이즈 여러개일때 한 번에 받을 수 있음.
-	DWORD recv_size;
+	//OVER_ALLOC* m_over_alloc = new OVER_ALLOC;
+
+	//m_over_alloc->RecvPrepare(packet_buf);
+	m_over_alloc.m_wsabuf.buf = packet_buf;
+	m_over_alloc.m_wsabuf.len = BUFSIZE;
+
+	DWORD recv_size{};
 	DWORD recv_flag = 0;
-	int res = WSARecv(m_ServerSock, wsabuf, 1, &recv_size, &recv_flag, nullptr, nullptr);
+	int res = WSARecv(m_Sock, &m_over_alloc.m_wsabuf, 1, &recv_size, &recv_flag, nullptr/*&m_over_alloc->over*/, nullptr);
+
 	if (res != 0) {
-		error_display("WSARecv Error : ", WSAGetLastError());
-		exit(0);
-		//assert(0);
+		int error = WSAGetLastError();
+		if (error != WSA_IO_PENDING && error != WSAEWOULDBLOCK) {
+			error_display("WSARecv Error : ", error);
+			assert(0);
+		}
+		else if (error == WSA_IO_PENDING) {
+			int x = 0;
+		}
 	}
+	//delete m_over_alloc;
 }
 
-vector<BYTE> Server::GetRecvBuffer()
+vector<CHAR> Server::GetRecvBuffer()
 {
-	// 저장할 벡터 생성
-	std::vector<BYTE> buffer;
+	vector<CHAR> buffer;
 
-	// 데이터 복사
-	buffer.insert(buffer.begin(), recvBuf, recvBuf + wsabuf[0].len);
+	buffer.insert(buffer.begin(), packet_buf, packet_buf + m_over_alloc.m_wsabuf.len);
 	return buffer;
+}
+
+void Server::InitBuffer()
+{
+	ZeroMemory(&packet_buf, BUFSIZE);
+	//ZeroMemory(m_over_alloc.send_buf, BUFSIZE);
 }
 
 void Server::SendReserve(void* data, size_t size)
 {
 	for (int i = 0;i < size;++i) {
-		m_SendReserveList.push_back(((BYTE*)data)[i]);
+		m_SendReserveList.push_back(((CHAR*)data)[i]);
 	}
 }
 

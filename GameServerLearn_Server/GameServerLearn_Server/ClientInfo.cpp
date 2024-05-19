@@ -1,3 +1,6 @@
+#pragma once
+#include "stdafx.h"
+
 #include "Server.h"
 #include "ClientInfo.h"
 #include "DataBase.h"
@@ -9,42 +12,50 @@ int g_id = 0;
 
 ClientInfo::ClientInfo()
 {
-    playerinfo.id = g_id++;
+    m_id = -1;
+
 	playerinfo.pos = { 0,0 };
 
     m_bUpdated = false;
+
+    m_cur_state = STATE::ST_FREE;
+
+    m_prev_remain_byte = 0;
 }
 
 ClientInfo::ClientInfo(SOCKET s, WSAOVERLAPPED* over) : ClientInfo()
 {
-    s_id = playerinfo.id;
-	sock = s;
-    m_WSAover = over;
-    wsabuf[0].buf = buf;
-    wsabuf[0].len = BUFSIZE;
+	m_sock = s;
+    //m_WSAover = over;
+    m_wsabuf[0].buf = m_cbuf;
+    m_wsabuf[0].len = BUFSIZE;
 }
 
 ClientInfo::~ClientInfo()
 {
-    closesocket(sock);
-    delete m_WSAover;
+    closesocket(m_sock);
+    //delete m_WSAover;
 }
 
 SOCKET ClientInfo::GetSock()
 {
-	return sock;
+	return m_sock;
 }
 
 LPWSAOVERLAPPED ClientInfo::GetWSAoverlapped()
 {
-	return m_WSAover;
+	return &m_over_alloc.over;
 }
 
 void ClientInfo::Recv()
 {
     DWORD recv_flag = 0;
-    ZeroMemory(m_WSAover, sizeof(*m_WSAover));
-    int res = WSARecv(sock, wsabuf, 1, nullptr, &recv_flag, m_WSAover, recv_callback);
+    ZeroMemory(&m_over_alloc.over, sizeof(m_over_alloc.over));
+    m_over_alloc.m_wsabuf.len = BUFSIZE - m_prev_remain_byte;
+    m_over_alloc.m_wsabuf.buf = reinterpret_cast<CHAR*>(m_over_alloc.send_buf + m_prev_remain_byte);
+    int res = WSARecv(m_sock, &m_over_alloc.m_wsabuf, 1, 0, &recv_flag,
+        &m_over_alloc.over, 0);
+    //std::cout << "수신\n";
     //cout << "받은 데이터 => " << recv_size << endl;
     if (res != 0) {
         auto err_no = WSAGetLastError();
@@ -56,30 +67,127 @@ void ClientInfo::Recv()
     }
 }
 
-void ClientInfo::Send()
+void ClientInfo::Send(void* packet)
 {
-    memcpy(buf, m_SendReserveList.data(), m_SendReserveList.size());
-
-    auto b = new EXP_OVER(buf, m_SendReserveList.size());
-    int res = WSASend(sock, b->wsabuf, 1, nullptr, 0, &b->wsaover, send_callback);
-    /*if (res != 0) {
+    auto b = new OVER_ALLOC(reinterpret_cast<char*>(packet));
+    int res = WSASend(m_sock, &b->m_wsabuf, 1, nullptr, 0, &b->over, 0);
+   // std::cout << "송신\n";
+    if (res != 0) {
         auto err_no = WSAGetLastError();
         if (WSA_IO_PENDING != err_no) {
             Server::error_display("WSASend Error : ", WSAGetLastError());
             assert(0);
         }
-    }*/
+    }
+}
+
+void ClientInfo::ProcessPacket(char* packet)
+{
+    switch (GameCommand_Type(packet[1]))
+    {
+    case GameCommand_Type::NONE: {
+        std::cout << "None\n";
+        SC_NONE_TYPE_PACKET p;
+        p.size = sizeof(SC_NONE_TYPE_PACKET);
+        p.type = GameCommand_Type::NONE;
+        Send(&p);
+        break;
+    }   
+    case GameCommand_Type::LOGIN: {
+        std::cout << "[" << m_id << "] 로그인\n";
+        std::array<ClientInfo, MAX_USER>& infos = serverFramework.GetClientInfo();
+        infos[m_id].Send_login();
+        m_cur_state = STATE::ST_INGAME;
+
+        for (auto& cl : infos) {
+            if (cl.m_cur_state != STATE::ST_INGAME) continue;
+            if (cl.m_id == m_id) continue;
+
+           // cl.m_mtxlock.lock();
+            cl.Send_add_player(m_id);
+           // cl.m_mtxlock.unlock();
+
+            //infos[m_id].m_mtxlock.lock();
+            infos[m_id].Send_add_player(cl.m_id);
+            //infos[m_id].m_mtxlock.unlock();
+		}
+
+        break;
+    }
+    case GameCommand_Type::MOVE: {
+        move_count++;
+        CS_MOVE_PACKET* p = reinterpret_cast<CS_MOVE_PACKET*>(packet);
+
+        //m_mtxlock.lock();
+        PlayerMove(p->Dir);
+        Send_move_player(p);
+        
+        //m_mtxlock.unlock();
+
+        std::cout << "[" << m_id << "] MOVE\n";
+        std::cout << move_count << "번 움직임\n";
+        std::cout << playerinfo.pos.x << "," << playerinfo.pos.y << std::endl;
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 void ClientInfo::Exit()
 {
-    serverFramework.ClientExit(m_WSAover);
+    serverFramework.ClientExit(&m_over_alloc.over);
+}
+
+void ClientInfo::Send_login()
+{
+    SC_LOGIN_PACKET sc_p;
+
+    sc_p.id = m_id;
+    sc_p.pos = playerinfo.pos;
+    sc_p.size = sizeof(SC_LOGIN_PACKET);
+
+    Send(&sc_p);
+    std::cout << "Send 로그인\n";
+}
+
+void ClientInfo::Send_move_player(void* packet) // 굳이 매개변수를 받을 필요는 현재까지는 없음.
+{
+    SC_MOVE_PLAYER_PACKET sc_p;
+    sc_p.id = m_id;
+    sc_p.pos = playerinfo.pos;
+    sc_p.size = sizeof(SC_MOVE_PLAYER_PACKET);
+
+    Send(&sc_p);
+
+    auto& infos = serverFramework.GetClientInfo();
+    for (auto& info : infos) {
+        if (info.m_cur_state != STATE::ST_INGAME) continue;
+        if (info.m_id == m_id) continue;
+        info.Send(&sc_p);
+    }
+}
+
+void ClientInfo::Send_add_player(int c_id)
+{
+    SC_ADD_PLAYER_PACKET sc_p;
+    sc_p.id = c_id;
+    sc_p.size = sizeof(SC_ADD_PLAYER_PACKET);
+
+    std::array<ClientInfo, MAX_USER>& cl_infos = serverFramework.GetClientInfo();
+    sc_p.pos = cl_infos[c_id].playerinfo.pos;
+
+    Send(&sc_p);
+    std::cout << "[" << m_id << "] 에게 Send Add [" << c_id << "] Pos(" << sc_p.pos.x << "," << sc_p.pos.y << ")" << std::endl;
+    
 }
 
 void ClientInfo::PlayerMove(PlayerMoveDir dir)
 {
     switch (dir)
     {
+    case PlayerMoveDir::NONE:
+        break;
     case PlayerMoveDir::LEFT:
         if (0 < playerinfo.pos.x) {
             playerinfo.pos.x -= 1;
@@ -120,17 +228,17 @@ void ClientInfo::UpdateData(DWORD transfer_size)
 {
     m_bUpdated = false;
 
-    vector<BYTE> cmdList;
-    cmdList.insert(cmdList.begin(), wsabuf[0].buf, wsabuf[0].buf + transfer_size);
+    std::vector<BYTE> cmdList;
+    cmdList.insert(cmdList.begin(), m_wsabuf[0].buf, m_wsabuf[0].buf + transfer_size);
 
     while (cmdList.size() != 0)
     {
         BYTE cmd = *cmdList.begin();
         cmdList.erase(cmdList.begin());
 
-        switch ((GameCommandList)cmd)
+        switch ((GameCommand_Type)cmd)
         {
-        case GameCommandList::MOVE:
+        case GameCommand_Type::MOVE:
             cmd = *cmdList.begin();
             cmdList.erase(cmdList.begin());
 
@@ -152,7 +260,7 @@ void ClientInfo::UpdateData(DWORD transfer_size)
                 assert(0);
             }
             break;
-        case GameCommandList::NONE:
+        case GameCommand_Type::NONE:
         default:
             break;
         }

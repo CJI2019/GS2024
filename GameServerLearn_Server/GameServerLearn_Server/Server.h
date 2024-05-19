@@ -1,26 +1,10 @@
 #pragma once
-#include <iostream>
-#include <WS2tcpip.h>
-#include <vector>
-#include <unordered_map>
-#include <cassert>
-#pragma comment (lib,"WS2_32.LIB")
+#include "../../Protocol.h"
 
 #define serverFramework Server::GetInstance()
 
-constexpr short SERVER_PORT = 4000;
-constexpr int BUFSIZE = 256;
-
-using namespace std;
-
-// 게임 커맨드 개수는 256개 미만일것임.
-enum class GameCommandList : BYTE {
-	NONE = 0,
-	MOVE
-};
 
 class ClientInfo;
-struct PlayerInfo;
 
 class Server
 {
@@ -32,26 +16,37 @@ public:
 		return instance;
 	}
 	~Server();
+	static void Worker_Thread();
+	static int Get_new_clientId();
+	static void Accept_Logic(OVER_ALLOC* o_alloc);
 
 	void Init();
 	void Accept();
 
+	static void Disconnect(int c_id);
 	void ClientExit(LPWSAOVERLAPPED wsaover);
 	static void error_display(const char* msg, int err_no);
 
 
-	void WriteToBuffer(vector<BYTE>& buffer,void* data, size_t size);
+	void WriteToBuffer(std::vector<BYTE>& buffer,void* data, size_t size);
 protected:
-	SOCKET m_ListenSock;
-	unordered_map<LPWSAOVERLAPPED, ClientInfo> m_umClientInfos;
+	static SOCKET m_Server_sock;
+	static SOCKET m_cSock;
+	static OVER_ALLOC m_over;
+	static HANDLE m_hiocp;
+
+	static std::array<ClientInfo, MAX_USER> m_aClientInfos;
+
+
+	std::unordered_map<LPWSAOVERLAPPED, ClientInfo> m_umClientInfos;
 	UINT m_iClient_count = 0; //접속한 개수가 아닌 접속했던 클라의 개수
 
-	vector<BYTE> m_CmdList;
+	std::vector<BYTE> m_CmdList;
 
-	vector<PlayerInfo*> m_playerinfos;
+	std::vector<PlayerInfo*> m_playerinfos;
 public:
-	unordered_map<LPWSAOVERLAPPED, ClientInfo>& GetClientInfos() { return m_umClientInfos; }
+	std::array<ClientInfo, MAX_USER>& GetClientInfo() { return m_aClientInfos; }
 
-	void WriteServerBuffer(vector<BYTE>& buffer, PlayerInfo* playerinfo);
+	void WriteServerBuffer(std::vector<BYTE>& buffer, PlayerInfo* playerinfo);
 	
 };

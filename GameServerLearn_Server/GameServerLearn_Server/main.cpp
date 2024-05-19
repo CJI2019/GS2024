@@ -1,9 +1,8 @@
+#pragma once
+#include "stdafx.h"
 #include "Server.h"
 
 int main()
 {
-	while (true)
-	{
-		serverFramework.Accept();
-	}
+	serverFramework.Accept();
 }

@@ -1,25 +1,9 @@
-#pragma once
-#include "stdafx.h"
+#include "../../Protocol.h"
 
 #define serverFramework Server::GetInstance()
 
 //constexpr char SERVER_ADDR[] = "127.0.0.1";
-constexpr short SERVER_PORT = 4000;
-constexpr int BUFSIZE = 256;
 
-// 게임 커맨드 개수는 256개 미만일것임.
-enum class GameCommandList : BYTE {
-	NONE = 0,
-	MOVE
-};
-
-
-enum class PlayerMoveDir : BYTE {
-	LEFT = 0,
-	RIGHT,
-	UP,
-	DOWN
-};
 
 class Server
 {
@@ -37,19 +21,25 @@ public:
 
 	void Send();
 
-	CHAR recvBuf[BUFSIZE];
 	void Recv();
-	vector<BYTE> GetRecvBuffer();
+	vector<CHAR> GetRecvBuffer();
+	void InitBuffer();
 
 	void SendReserve(void* data, size_t size);
 	void ResetSendList();
 
 	void error_display(const char* msg, int err_no);
 
-protected:
-	SOCKET m_ServerSock;
+	//void Worker_Thread();
+//protected:
+	OVER_ALLOC m_over_alloc;
+
+	SOCKET m_Sock;
 	WSABUF wsabuf[1];
 
-	vector<BYTE> m_SendReserveList;
+	vector<CHAR> m_SendReserveList;
+
+	CHAR packet_buf[BUFSIZE];
+
 };
 

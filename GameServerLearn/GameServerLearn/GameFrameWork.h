@@ -13,7 +13,7 @@ private:
 
 	vector<unique_ptr<Object>> m_vSceneObject; 
 
-	int m_playerId = 0;//  m_vSceneObject[m_playerId] 로 플레이어를 접근
+	int m_playerId = -1;//  m_vSceneObject[m_playerId] 로 플레이어를 접근
 public:
 	GameFrameWork();
 	~GameFrameWork();
@@ -22,7 +22,7 @@ public:
 	void WriteData();
 	void KeyInput(float elapsedTime);
 
-	void AddPlayerObject();
+	void AddPlayerObject(void* buffer);
 	void DelPlayerObject();
 
 	static POINT** GetPanPosition();
