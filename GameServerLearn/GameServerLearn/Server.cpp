@@ -71,6 +71,7 @@ Server::Server()
 	packet.size = sizeof(CS_LOGIN_PACKET);
 	SendReserve(&packet, sizeof(CS_LOGIN_PACKET));
 
+	remain_recv_byte = 0;
 }
 
 Server::~Server()
@@ -113,8 +114,9 @@ void Server::Recv()
 	//OVER_ALLOC* m_over_alloc = new OVER_ALLOC;
 
 	//m_over_alloc->RecvPrepare(packet_buf);
-	m_over_alloc.m_wsabuf.buf = packet_buf;
-	m_over_alloc.m_wsabuf.len = BUFSIZE;
+	m_over_alloc.m_wsabuf.buf = packet_buf + remain_recv_byte;
+	m_over_alloc.m_wsabuf.len = BUFSIZE - remain_recv_byte;
+	remain_recv_byte = 0;
 
 	DWORD recv_size{};
 	DWORD recv_flag = 0;
@@ -137,14 +139,13 @@ vector<CHAR> Server::GetRecvBuffer()
 {
 	vector<CHAR> buffer;
 
-	buffer.insert(buffer.begin(), packet_buf, packet_buf + m_over_alloc.m_wsabuf.len);
+	buffer.insert(buffer.begin(), packet_buf, packet_buf + BUFSIZE);
 	return buffer;
 }
 
-void Server::InitBuffer()
+void Server::InitBuffer(int interval)
 {
-	ZeroMemory(&packet_buf, BUFSIZE);
-	//ZeroMemory(m_over_alloc.send_buf, BUFSIZE);
+	memset(packet_buf + interval, 0, BUFSIZE - interval);
 }
 
 void Server::SendReserve(void* data, size_t size)

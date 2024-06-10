@@ -1,5 +1,6 @@
 #pragma once
-#include "stdafx.h"
+//#include "stdafx.h"
+#include "../../Protocol.h"
 
 constexpr int BUFSIZE = 256;
 

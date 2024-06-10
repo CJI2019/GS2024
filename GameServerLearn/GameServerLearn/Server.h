@@ -1,5 +1,3 @@
-#include "../../Protocol.h"
-
 #define serverFramework Server::GetInstance()
 
 //constexpr char SERVER_ADDR[] = "127.0.0.1";
@@ -22,7 +20,7 @@ public:
 
 	void Recv();
 	vector<CHAR> GetRecvBuffer();
-	void InitBuffer();
+	void InitBuffer(int interval);
 
 	void SendReserve(void* data, size_t size);
 	void ResetSendList();
@@ -39,6 +37,6 @@ public:
 	vector<CHAR> m_SendReserveList;
 
 	CHAR packet_buf[BUFSIZE];
-
+	int remain_recv_byte;
 };
 

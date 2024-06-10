@@ -20,6 +20,8 @@ public:
 
 	PlayerInfo playerinfo;
 	int move_count{};
+
+	int m_LastMoveTime;
 public:
 	ClientInfo();
 	ClientInfo(SOCKET m_sock, WSAOVERLAPPED* over);

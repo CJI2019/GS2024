@@ -31,5 +31,5 @@
 using namespace std::chrono;
 using namespace std;
 
-#define FRAME_WIDTH 1920
-#define FRAME_HEIGHT 1080
+#define FRAME_WIDTH 1000
+#define FRAME_HEIGHT 800

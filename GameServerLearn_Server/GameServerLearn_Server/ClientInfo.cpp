@@ -8,6 +8,10 @@
 extern void CALLBACK recv_callback(DWORD, DWORD, LPWSAOVERLAPPED, DWORD);
 extern void CALLBACK send_callback(DWORD, DWORD, LPWSAOVERLAPPED, DWORD);
 
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_int_distribution<int> dis(0, ROW_X - 1);
+
 int g_id = 0;
 
 ClientInfo::ClientInfo()
@@ -21,6 +25,8 @@ ClientInfo::ClientInfo()
     m_cur_state = STATE::ST_FREE;
 
     m_prev_remain_byte = 0;
+
+    m_LastMoveTime = 0;
 }
 
 ClientInfo::ClientInfo(SOCKET s, WSAOVERLAPPED* over) : ClientInfo()
@@ -72,13 +78,13 @@ void ClientInfo::Send(void* packet)
     auto b = new OVER_ALLOC(reinterpret_cast<char*>(packet));
     int res = WSASend(m_sock, &b->m_wsabuf, 1, nullptr, 0, &b->over, 0);
    // std::cout << "¼Û½Å\n";
-    if (res != 0) {
+    /*if (res != 0) {
         auto err_no = WSAGetLastError();
         if (WSA_IO_PENDING != err_no) {
             Server::error_display("WSASend Error : ", WSAGetLastError());
             assert(0);
         }
-    }
+    }*/
 }
 
 void ClientInfo::ProcessPacket(char* packet)
@@ -89,10 +95,16 @@ void ClientInfo::ProcessPacket(char* packet)
         std::cout << "[" << m_id << "] ·Î±×ÀÎ\n";
         std::array<ClientInfo, MAX_USER>& infos = serverFramework.GetClientInfo();
         infos[m_id].Send_login();
-        m_cur_state = STATE::ST_INGAME;
+        {
+            std::lock_guard<std::mutex> ll(m_mtxlock);
+            m_cur_state = STATE::ST_INGAME;
+        }
 
         for (auto& cl : infos) {
-            if (cl.m_cur_state != STATE::ST_INGAME) continue;
+            {
+                std::lock_guard<std::mutex> ll(cl.m_mtxlock);
+                if (cl.m_cur_state != STATE::ST_INGAME) continue;
+            }
             if (cl.m_id == m_id) continue;
 
            // cl.m_mtxlock.lock();
@@ -101,6 +113,7 @@ void ClientInfo::ProcessPacket(char* packet)
 
             //infos[m_id].m_mtxlock.lock();
             infos[m_id].Send_add_player(cl.m_id);
+            //std::cout << "[" << m_id << "] ¿¡°Ô " << "Add Player Send\n";
             //infos[m_id].m_mtxlock.unlock();
 		}
 
@@ -111,14 +124,15 @@ void ClientInfo::ProcessPacket(char* packet)
         CS_MOVE_PACKET* p = reinterpret_cast<CS_MOVE_PACKET*>(packet);
 
         //m_mtxlock.lock();
+        m_LastMoveTime = p->move_time;
         PlayerMove(p->direction);
         Send_move_player(p);
         
         //m_mtxlock.unlock();
 
-        std::cout << "[" << m_id << "] MOVE\n";
-        std::cout << move_count << "¹ø ¿òÁ÷ÀÓ\n";
-        std::cout << playerinfo.pos.x << "," << playerinfo.pos.y << std::endl;
+        //std::cout << "[" << m_id << "] MOVE\n";
+        //std::cout << move_count << "¹ø ¿òÁ÷ÀÓ\n";
+        //std::cout << playerinfo.pos.x << "," << playerinfo.pos.y << std::endl;
         break;
     }
     default:
@@ -128,7 +142,7 @@ void ClientInfo::ProcessPacket(char* packet)
 
 void ClientInfo::Exit()
 {
-    serverFramework.ClientExit(&m_over_alloc.over);
+    serverFramework.Disconnect(m_id);
 }
 
 void ClientInfo::Send_login()
@@ -137,6 +151,10 @@ void ClientInfo::Send_login()
     
     sc_p.type = SC_LOGIN_INFO;
     sc_p.id = m_id;
+
+    playerinfo.pos.x = dis(gen);
+    playerinfo.pos.y = dis(gen);
+
     sc_p.x = playerinfo.pos.x;
     sc_p.y = playerinfo.pos.y;
     sc_p.size = sizeof(SC_LOGIN_INFO_PACKET);
@@ -154,6 +172,7 @@ void ClientInfo::Send_move_player(void* packet) // ±»ÀÌ ¸Å°³º¯¼ö¸¦ ¹ÞÀ» ÇÊ¿ä´Â Ç
     sc_p.x = playerinfo.pos.x;
     sc_p.y = playerinfo.pos.y;
     sc_p.size = sizeof(SC_MOVE_OBJECT_PACKET);
+    sc_p.move_time = m_LastMoveTime;
 
     Send(&sc_p);
 

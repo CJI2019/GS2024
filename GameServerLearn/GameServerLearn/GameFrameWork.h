@@ -14,6 +14,7 @@ private:
 	vector<unique_ptr<Object>> m_vSceneObject; 
 
 	int m_playerId = -1;//  m_vSceneObject[m_playerId] 로 플레이어를 접근
+	int m_objectCount;
 public:
 	GameFrameWork();
 	~GameFrameWork();
@@ -30,5 +31,6 @@ public:
 	vector<unique_ptr<Object>>& GetSceneObjects();
 
 	int GetMainPlayerId() { return m_playerId; }
+	int GetObjectCount() { return m_objectCount; }
 };
 

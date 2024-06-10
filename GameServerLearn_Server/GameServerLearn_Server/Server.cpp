@@ -150,6 +150,8 @@ int Server::Get_new_clientId()
 {
 	int new_Id = -1;
 	for (int i = 0; i < MAX_USER;++i) {
+		std::lock_guard<std::mutex> cl_il(m_aClientInfos[i].m_mtxlock);
+
 		if (m_aClientInfos[i].m_cur_state == STATE::ST_INGAME) continue;
 		if (m_aClientInfos[i].m_cur_state == STATE::ST_ALLOC) continue;
 		new_Id = i;
@@ -161,6 +163,7 @@ int Server::Get_new_clientId()
 void Server::Accept_Logic(OVER_ALLOC* o_alloc)
 {
 	int client_Id = Get_new_clientId();
+
 	if (client_Id != -1) {
 		{// lock_guard로 하는게 그냥 m_aClientInfos[client_Id].m_mtxlock.lock 이랑 무슨차이지?
 			std::lock_guard<std::mutex> mtx(m_aClientInfos[client_Id].m_mtxlock);

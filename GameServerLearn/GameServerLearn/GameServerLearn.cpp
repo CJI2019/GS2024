@@ -129,7 +129,7 @@ BOOL InitInstance(HINSTANCE hInstance, HWND& hWnd, int nCmdShow)
       CW_USEDEFAULT, 0,
        CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);*/
    hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-       0, 0,
+       300, 100,
        FRAME_WIDTH, FRAME_HEIGHT, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
    {
@@ -215,16 +215,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 if (mainPlayer_Id != -1) {
                     Vector2 mainPos = SceneObejcts[mainPlayer_Id]->GetPosition();
 
-                    // 메인플레이어 좌표 표시
-
-                    // 폰트를 선택하고 이전 폰트를 저장
-                    hOldFont = (HFONT)SelectObject(MemDC, GetFont());
-                    RECT rect = { 0, 100, 500, 300 }; // 텍스트가 그려질 사각형 영역
-                    TCHAR text[30];
-                    SetTextColor(MemDC, COLORREF(rgbBlue));
-                    _stprintf_s(text, _T("좌표 : (%d, %d)"), mainPos.x, mainPos.y);
-                    DrawText(MemDC, text, -1, &rect, DT_CENTER | DT_SINGLELINE);
-
                     if (mainPos.x > viewSize / 2 ) {
                         B_offsetX = (mainPos.x) % 2 == 0 ? 0 : 1;
                     }
@@ -285,6 +275,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     if (object->GetId() == -1) continue;
                     object->Draw(MemDC, rectSize, offset);
                 }
+
+                // 메인플레이어 좌표 표시
+                    // 폰트를 선택하고 이전 폰트를 저장
+                hOldFont = (HFONT)SelectObject(MemDC, GetFont());
+                RECT rect = { 0, 100, 1000, 300 }; // 텍스트가 그려질 사각형 영역
+                TCHAR text[70];
+                SetTextColor(MemDC, COLORREF(rgbBlue));
+                _stprintf_s(text, _T("좌표 : (%d, %d) , 생성된 객체 : %d "), mainPos.x, mainPos.y, gGameFrameWork.GetObjectCount());
+                DrawText(MemDC, text, -1, &rect, DT_CENTER | DT_SINGLELINE);
             }
 
             // 리소스 정리

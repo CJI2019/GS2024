@@ -20,6 +20,7 @@ GameFrameWork::GameFrameWork()
 	for (int i = 0; i < MAX_USER;++i) {
 		m_vSceneObject.emplace_back(make_unique<Player>());
 	}
+	m_objectCount = 0;
 }
 
 void GameFrameWork::InitMap()
@@ -74,10 +75,10 @@ void GameFrameWork::KeyInput(float elapsedTime)
 	}
 
 }
-int cnt = 0;
+
 void GameFrameWork::AddPlayerObject(void* buffer)
 {
-	cnt++;
+	m_objectCount++;
 	SC_ADD_OBJECT_PACKET* packet = reinterpret_cast<SC_ADD_OBJECT_PACKET*>(buffer);
 
 	//int newId = -1;
@@ -112,15 +113,41 @@ void GameFrameWork::WriteData()
 {
 	auto buffer = serverFramework.GetRecvBuffer();
 
-	while (buffer[0] != 0)
-	{
-		switch (buffer[2])
+	unsigned short packet_size;
+
+	while (buffer.size() != 0)
+	{ // 패킷 사이즈가 2바이트이기 떄문에 이에 대한 처리 생각해야함.
+		if (buffer.size() > 1) {
+			memcpy(&packet_size, buffer.data(), sizeof(unsigned short));
+			if (packet_size >= BUFSIZE) break;
+			if (buffer.size() < packet_size) {
+				serverFramework.remain_recv_byte += buffer.size();
+				memcpy(serverFramework.packet_buf, buffer.data(), buffer.size());
+				serverFramework.InitBuffer(buffer.size());
+				break;
+			} //[10] [3]가 남음. [3]에 해당하는 버퍼를 packetbuf의 앞으로 당겨와야함.
+			else if(packet_size == 0){
+				serverFramework.InitBuffer(0);
+				break;
+			}
+		}
+		else { // buffer의 사이즈가 1바이트 뿐인것임. 2바이트 중 1바이트만 현재 버퍼에 온것을 뜻함.
+			//남은 1바이트를 처리
+			serverFramework.remain_recv_byte += 1;
+			memcpy(serverFramework.packet_buf, buffer.data(), buffer.size());
+			serverFramework.InitBuffer(1);
+			break;
+		}
+		switch (buffer[2]) // 패킷의 유형을 나타냄 1바이트로 표현 256개 이상의 패킷 유형을 만들지는 않을 것이므로..
 		{
 		case SC_LOGIN_INFO: {
 			SC_LOGIN_INFO_PACKET* packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(buffer.data());
 			m_playerId = packet->id; // 메인 클라이언트 Id Set
 			m_vSceneObject[m_playerId]->SetId(packet->id);
 			m_vSceneObject[m_playerId]->SetPosition(Vector2(packet->x, packet->y));
+			if (packet->x >= 2000 || packet->x < 0) {
+				assert(0);
+			}
 			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_LOGIN_INFO_PACKET));
 			break;
 		}
@@ -135,15 +162,12 @@ void GameFrameWork::WriteData()
 			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_ADD_OBJECT_PACKET));
 			break;
 		}
-		default:
-			break;
+		default: {
+			assert(0); // 패킷 유형이 올바르지 않음.
 		}
-
-		if (buffer.size() == 0) {
 			break;
 		}
 	}
-	serverFramework.InitBuffer();
 }
 
 

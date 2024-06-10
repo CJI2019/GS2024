@@ -1,5 +1,4 @@
 #pragma once
-#include "../../Protocol.h"
 
 #define serverFramework Server::GetInstance()
 
@@ -37,13 +36,12 @@ protected:
 
 	static std::array<ClientInfo, MAX_USER> m_aClientInfos;
 
-
-	std::unordered_map<LPWSAOVERLAPPED, ClientInfo> m_umClientInfos;
 	UINT m_iClient_count = 0; //접속한 개수가 아닌 접속했던 클라의 개수
 
 	std::vector<BYTE> m_CmdList;
 
 	std::vector<PlayerInfo*> m_playerinfos;
+
 public:
 	std::array<ClientInfo, MAX_USER>& GetClientInfo() { return m_aClientInfos; }
 
