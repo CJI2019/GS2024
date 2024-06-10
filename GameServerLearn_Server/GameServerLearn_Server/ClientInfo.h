@@ -38,9 +38,8 @@ public:
 
 	bool IsUpdated() { return m_bUpdated; }
 
-	void PlayerMove(PlayerMoveDir dir);
+	void PlayerMove(char dir);
 	void WriteData();
-	void UpdateData(DWORD transfer_size);
 
 };
 

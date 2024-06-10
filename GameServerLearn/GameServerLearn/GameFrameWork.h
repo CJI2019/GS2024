@@ -18,6 +18,7 @@ public:
 	GameFrameWork();
 	~GameFrameWork();
 
+	void InitMap();
 	void Update(float elapsedTime);
 	void WriteData();
 	void KeyInput(float elapsedTime);
@@ -27,5 +28,7 @@ public:
 
 	static POINT** GetPanPosition();
 	vector<unique_ptr<Object>>& GetSceneObjects();
+
+	int GetMainPlayerId() { return m_playerId; }
 };
 

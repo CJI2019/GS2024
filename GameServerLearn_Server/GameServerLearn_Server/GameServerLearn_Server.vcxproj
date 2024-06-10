@@ -141,6 +141,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Common.h" />
     <ClInclude Include="..\..\Protocol.h" />
     <ClInclude Include="ClientInfo.h" />
     <ClInclude Include="DataBase.h" />

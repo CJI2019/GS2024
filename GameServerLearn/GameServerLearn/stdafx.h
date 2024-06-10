@@ -20,14 +20,16 @@
 #include <cassert>
 #include <mutex>
 #include <thread>
-
+#include <tchar.h>
 
 #include <iostream>
 #include <WS2tcpip.h>
 #pragma comment (lib,"WS2_32.LIB")
 
+#include "../../Common.h"
+
 using namespace std::chrono;
 using namespace std;
 
-#define ROW_X 8 // 정사각형이므로 하나만 사용해도 무방
-#define COL_Y 8
+#define FRAME_WIDTH 1920
+#define FRAME_HEIGHT 1080

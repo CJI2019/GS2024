@@ -83,17 +83,9 @@ void ClientInfo::Send(void* packet)
 
 void ClientInfo::ProcessPacket(char* packet)
 {
-    switch (GameCommand_Type(packet[1]))
+    switch (packet[2])
     {
-    case GameCommand_Type::NONE: {
-        std::cout << "None\n";
-        SC_NONE_TYPE_PACKET p;
-        p.size = sizeof(SC_NONE_TYPE_PACKET);
-        p.type = GameCommand_Type::NONE;
-        Send(&p);
-        break;
-    }   
-    case GameCommand_Type::LOGIN: {
+    case CS_LOGIN: {
         std::cout << "[" << m_id << "] ·Î±×ÀÎ\n";
         std::array<ClientInfo, MAX_USER>& infos = serverFramework.GetClientInfo();
         infos[m_id].Send_login();
@@ -114,12 +106,12 @@ void ClientInfo::ProcessPacket(char* packet)
 
         break;
     }
-    case GameCommand_Type::MOVE: {
+    case CS_MOVE: {
         move_count++;
         CS_MOVE_PACKET* p = reinterpret_cast<CS_MOVE_PACKET*>(packet);
 
         //m_mtxlock.lock();
-        PlayerMove(p->Dir);
+        PlayerMove(p->direction);
         Send_move_player(p);
         
         //m_mtxlock.unlock();
@@ -141,11 +133,13 @@ void ClientInfo::Exit()
 
 void ClientInfo::Send_login()
 {
-    SC_LOGIN_PACKET sc_p;
-
+    SC_LOGIN_INFO_PACKET sc_p;
+    
+    sc_p.type = SC_LOGIN_INFO;
     sc_p.id = m_id;
-    sc_p.pos = playerinfo.pos;
-    sc_p.size = sizeof(SC_LOGIN_PACKET);
+    sc_p.x = playerinfo.pos.x;
+    sc_p.y = playerinfo.pos.y;
+    sc_p.size = sizeof(SC_LOGIN_INFO_PACKET);
 
     Send(&sc_p);
     std::cout << "Send ·Î±×ÀÎ\n";
@@ -153,10 +147,13 @@ void ClientInfo::Send_login()
 
 void ClientInfo::Send_move_player(void* packet) // ±»ÀÌ ¸Å°³º¯¼ö¸¦ ¹ÞÀ» ÇÊ¿ä´Â ÇöÀç±îÁö´Â ¾øÀ½.
 {
-    SC_MOVE_PLAYER_PACKET sc_p;
+    SC_MOVE_OBJECT_PACKET sc_p;
+
+    sc_p.type = SC_MOVE_OBJECT;
     sc_p.id = m_id;
-    sc_p.pos = playerinfo.pos;
-    sc_p.size = sizeof(SC_MOVE_PLAYER_PACKET);
+    sc_p.x = playerinfo.pos.x;
+    sc_p.y = playerinfo.pos.y;
+    sc_p.size = sizeof(SC_MOVE_OBJECT_PACKET);
 
     Send(&sc_p);
 
@@ -170,24 +167,27 @@ void ClientInfo::Send_move_player(void* packet) // ±»ÀÌ ¸Å°³º¯¼ö¸¦ ¹ÞÀ» ÇÊ¿ä´Â Ç
 
 void ClientInfo::Send_add_player(int c_id)
 {
-    SC_ADD_PLAYER_PACKET sc_p;
+    SC_ADD_OBJECT_PACKET sc_p;
+
+    sc_p.type = SC_ADD_OBJECT;
     sc_p.id = c_id;
-    sc_p.size = sizeof(SC_ADD_PLAYER_PACKET);
+    sc_p.size = sizeof(SC_ADD_OBJECT_PACKET);
 
     std::array<ClientInfo, MAX_USER>& cl_infos = serverFramework.GetClientInfo();
-    sc_p.pos = cl_infos[c_id].playerinfo.pos;
+    sc_p.x = cl_infos[c_id].playerinfo.pos.x;
+    sc_p.y = cl_infos[c_id].playerinfo.pos.y;
 
     Send(&sc_p);
-    std::cout << "[" << m_id << "] ¿¡°Ô Send Add [" << c_id << "] Pos(" << sc_p.pos.x << "," << sc_p.pos.y << ")" << std::endl;
+    //std::cout << "[" << m_id << "] ¿¡°Ô Send Add [" << c_id << "] Pos(" << sc_p.x << "," << sc_p.y << ")" << std::endl;
     
 }
 
-void ClientInfo::PlayerMove(PlayerMoveDir dir)
+void ClientInfo::PlayerMove(char dir)
 {
-    switch (dir)
+    switch (static_cast<PlayerMoveDir>(dir))
     {
-    case PlayerMoveDir::NONE:
-        break;
+    /*case PlayerMoveDir::NONE:
+        break;*/
     case PlayerMoveDir::LEFT:
         if (0 < playerinfo.pos.x) {
             playerinfo.pos.x -= 1;
@@ -223,49 +223,3 @@ void ClientInfo::WriteData()
     serverFramework.WriteServerBuffer(m_SendReserveList, &playerinfo);
 
 }
-
-void ClientInfo::UpdateData(DWORD transfer_size)
-{
-    m_bUpdated = false;
-
-    std::vector<BYTE> cmdList;
-    cmdList.insert(cmdList.begin(), m_wsabuf[0].buf, m_wsabuf[0].buf + transfer_size);
-
-    while (cmdList.size() != 0)
-    {
-        BYTE cmd = *cmdList.begin();
-        cmdList.erase(cmdList.begin());
-
-        switch ((GameCommand_Type)cmd)
-        {
-        case GameCommand_Type::MOVE:
-            cmd = *cmdList.begin();
-            cmdList.erase(cmdList.begin());
-
-            switch ((PlayerMoveDir)cmd)
-            {
-            case PlayerMoveDir::LEFT:
-                PlayerMove((PlayerMoveDir)cmd);
-                break;
-            case PlayerMoveDir::RIGHT:
-                PlayerMove((PlayerMoveDir)cmd);
-                break;
-            case PlayerMoveDir::UP:
-                PlayerMove((PlayerMoveDir)cmd);
-                break;
-            case PlayerMoveDir::DOWN:
-                PlayerMove((PlayerMoveDir)cmd);
-                break;
-            default:
-                assert(0);
-            }
-            break;
-        case GameCommand_Type::NONE:
-        default:
-            break;
-        }
-    }
-
-    m_bUpdated = true;
-}
-

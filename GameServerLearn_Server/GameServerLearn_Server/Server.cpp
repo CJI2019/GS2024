@@ -35,7 +35,7 @@ void Server::Init()
 	SOCKADDR_IN addr_s;
 	memset(&addr_s, 0, sizeof(addr_s));
 	addr_s.sin_family = AF_INET;
-	addr_s.sin_port = htons(SERVER_PORT);
+	addr_s.sin_port = htons(PORT_NUM);
 	addr_s.sin_addr.S_un.S_addr = INADDR_ANY;
 
 	int res = bind(m_Server_sock, reinterpret_cast<sockaddr*>(&addr_s), sizeof(addr_s));

@@ -54,7 +54,7 @@ Server::Server()
 
 	SOCKADDR_IN addr_s;
 	addr_s.sin_family = AF_INET;
-	addr_s.sin_port = htons(SERVER_PORT);
+	addr_s.sin_port = htons(PORT_NUM);
 	inet_pton(AF_INET, IP_ADDRESS, &addr_s.sin_addr);
 
 
@@ -67,6 +67,7 @@ Server::Server()
 	ioctlsocket(m_Sock, FIONBIO, &mode);
 
 	CS_LOGIN_PACKET packet;
+	packet.type = CS_LOGIN;
 	packet.size = sizeof(CS_LOGIN_PACKET);
 	SendReserve(&packet, sizeof(CS_LOGIN_PACKET));
 

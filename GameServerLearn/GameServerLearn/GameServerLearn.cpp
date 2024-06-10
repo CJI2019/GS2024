@@ -1,5 +1,4 @@
 ﻿#pragma once
-#include "stdafx.h"
 #include "GameServerLearn.h"
 #include "stdafx.h"
 #include "Player.h"
@@ -9,6 +8,8 @@
 #define MAX_LOADSTRING 100
 
 GameFrameWork gGameFrameWork;
+
+UINT16 gRectHeightSize, gRectWidthSize;
 
 // 전역 변수:
 HINSTANCE hInst;                                // 현재 인스턴스입니다.
@@ -48,6 +49,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GAMESERVERLEARN));
     
     MSG msg;
+    gGameFrameWork.InitMap();
 
     auto lastTime = high_resolution_clock::now();
 
@@ -123,9 +125,12 @@ BOOL InitInstance(HINSTANCE hInstance, HWND& hWnd, int nCmdShow)
 {
    hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
 
+   /*hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+      CW_USEDEFAULT, 0,
+       CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);*/
    hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-
+       0, 0,
+       FRAME_WIDTH, FRAME_HEIGHT, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
    {
       return FALSE;
@@ -136,8 +141,6 @@ BOOL InitInstance(HINSTANCE hInstance, HWND& hWnd, int nCmdShow)
 
    return TRUE;
 }
-
-UINT16 gRectHeightSize, gRectWidthSize;
 
 // 윈도우 프로시저 함수
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -155,6 +158,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             gRectWidthSize = width;
             gRectHeightSize = height;
             //MessageBox(hWnd, szSize, TEXT("창 크기 확인"), MB_OK);
+
+            gGameFrameWork.InitMap();
         }
         break;
     case WM_COMMAND:
@@ -190,45 +195,96 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             PatBlt(MemDC, 0, 0, bufferRT.right, bufferRT.bottom, WHITENESS);
 
             RECT rect;
-            HBRUSH hBrush;
+            HBRUSH hBrush, hOldBrush;
             HPEN hPen, hOldPen;
-            int rectSize = gRectHeightSize / ROW_X; // 체스판 한 칸의 크기
-            int boardSize = rectSize * ROW_X;       // 체스판 전체 크기
+            HFONT hOldFont = nullptr;
+
+            int viewSize = 20;
+            int rectSize = gRectHeightSize / viewSize; // 체스판 한 칸의 크기
+            int boardSize = rectSize * viewSize;       // 체스판 전체 크기
 
             int centerCustomXpos = (gRectWidthSize - gRectHeightSize) / 2;
+
             POINT** panPosition = gGameFrameWork.GetPanPosition();
+            auto& SceneObejcts = gGameFrameWork.GetSceneObjects();
+
+            int B_offsetX = 0; // 보드의 색을 바꾸기 위한 옵션 0이면 흰색(0,0) 1이면 검은색(0,0)
+            int B_offsetY = 0; 
+            {
+                int mainPlayer_Id = gGameFrameWork.GetMainPlayerId();
+                if (mainPlayer_Id != -1) {
+                    Vector2 mainPos = SceneObejcts[mainPlayer_Id]->GetPosition();
+
+                    // 메인플레이어 좌표 표시
+
+                    // 폰트를 선택하고 이전 폰트를 저장
+                    hOldFont = (HFONT)SelectObject(MemDC, GetFont());
+                    RECT rect = { 0, 100, 500, 300 }; // 텍스트가 그려질 사각형 영역
+                    TCHAR text[30];
+                    SetTextColor(MemDC, COLORREF(rgbBlue));
+                    _stprintf_s(text, _T("좌표 : (%d, %d)"), mainPos.x, mainPos.y);
+                    DrawText(MemDC, text, -1, &rect, DT_CENTER | DT_SINGLELINE);
+
+                    if (mainPos.x > viewSize / 2 ) {
+                        B_offsetX = (mainPos.x) % 2 == 0 ? 0 : 1;
+                    }
+                    if ( mainPos.y > viewSize / 2) {
+                        B_offsetY = (mainPos.y) % 2 == 0 ? 0 : 1;
+                    }
+                }
+            }
             // 체스판 그리기
-            for (int y = 0; y < ROW_X; y++) {
-                for (int x = 0; x < ROW_X; x++) {
+            for (int y = 0; y < viewSize; y++) {
+                for (int x = 0; x < viewSize; x++) {
                     rect.left = (x * rectSize) + centerCustomXpos;
                     rect.top = y * rectSize;
                     rect.right = ((x + 1) * rectSize) + centerCustomXpos;
                     rect.bottom = (y + 1) * rectSize;
 
                     // 검은색과 흰색 칸 번갈아가며 색칠
-                    hBrush = (x + y) % 2 == 0 ? (HBRUSH)GetStockObject(WHITE_BRUSH) : (HBRUSH)GetStockObject(BLACK_BRUSH);
+                    hBrush = (x + B_offsetX + y + B_offsetY) % 2 == 0 ? (HBRUSH)GetStockObject(GRAY_BRUSH) : (HBRUSH)GetStockObject(LTGRAY_BRUSH);
                     FillRect(MemDC, &rect, hBrush);
 
-                    panPosition[x][y] = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
+                    //panPosition[x][y] = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
                 }
             }
-            // 외곽선을 위한 펜 생성
-            hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0)); // 검은색 펜
-            hOldPen = (HPEN)SelectObject(MemDC, hPen);
-            hBrush = CreateSolidBrush(RGB(0, 0, 0));
-            HBRUSH hOldBrush = (HBRUSH)SelectObject(MemDC, hBrush);
 
-            // 체스판 외곽선 그리기
-            rect.left = 0  + centerCustomXpos;
-            rect.top = 0;
-            rect.right = boardSize + centerCustomXpos;
-            rect.bottom = boardSize;
-            FrameRect(MemDC, &rect, hBrush);
+            {
+                hPen = CreatePen(PS_SOLID, 1, RGB(200, 0, 0)); // 검은색 펜
+                hOldPen = (HPEN)SelectObject(MemDC, hPen);
+                hBrush = CreateSolidBrush(RGB(200, 0, 0)); // 외곽선을 위한 브러시
+                hOldBrush = (HBRUSH)SelectObject(MemDC, hBrush);
 
-            // 오브젝트 그리기
-            for (auto& object : gGameFrameWork.GetSceneObjects()) {
-                if (object->GetId() == -1) continue;
-                object->Draw(MemDC, rectSize);
+                // 체스판 외곽선 그리기
+                int Frame_offset = 0;
+                rect.left = 0 + centerCustomXpos - Frame_offset;
+                rect.top = 0 - Frame_offset;
+                rect.right = boardSize + centerCustomXpos + Frame_offset;
+                rect.bottom = boardSize + Frame_offset;
+                FrameRect(MemDC, &rect, hBrush);
+            }
+
+            int mainPlayer_Id = gGameFrameWork.GetMainPlayerId();
+            if (mainPlayer_Id != -1) {
+                Vector2 mainPos = SceneObejcts[mainPlayer_Id]->GetPosition();
+
+                int offsetX = 0;
+                if (mainPos.x > viewSize / 2) {
+                    offsetX = rectSize * (mainPos.x - viewSize / 2);
+                }
+
+                int offsetY = 0;
+                if (mainPos.y > viewSize / 2) {
+                    offsetY = rectSize * (mainPos.y - viewSize / 2);
+                }
+
+                POINT offset = { offsetX,offsetY };
+
+                // 오브젝트 그리기
+                for (auto& object : SceneObejcts) {
+                    if (object->GetId() == -1) continue;
+                    object->Draw(MemDC, rectSize, offset);
+                }
             }
 
             // 리소스 정리
@@ -236,6 +292,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             DeleteObject(hBrush);
             SelectObject(MemDC, hOldPen);
             DeleteObject(hPen);
+            SelectObject(hdc, hOldFont);
 
             // 더블 버퍼링 끝 처리
             BitBlt(hdc, 0, 0, bufferRT.right, bufferRT.bottom, MemDC, 0, 0, SRCCOPY);

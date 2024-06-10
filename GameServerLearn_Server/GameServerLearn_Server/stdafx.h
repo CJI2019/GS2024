@@ -11,5 +11,7 @@
 #include <array>
 #include <string>
 
+#include "../../Common.h"
+
 #pragma comment(lib,"WS2_32.LIB")
 #pragma comment(lib, "MSWSock.lib")

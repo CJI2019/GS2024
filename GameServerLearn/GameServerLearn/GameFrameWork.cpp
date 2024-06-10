@@ -5,18 +5,40 @@
 
 POINT** GameFrameWork::PanPosition;
 
+extern UINT16 gRectHeightSize, gRectWidthSize;
+
 GameFrameWork::GameFrameWork()
 {
 	if (!PanPosition) {
 		PanPosition = new POINT * [ROW_X];
-		for (int i = 0;i < ROW_X;++i) {
-			PanPosition[i] = new POINT[ROW_X];
+		for (int i = 0;i < COL_Y;++i) {
+			PanPosition[i] = new POINT[COL_Y];
 		}
 	}
 	m_vSceneObject.reserve(MAX_USER);
 	//m_vSceneObject.push_back(make_unique<Player>());
 	for (int i = 0; i < MAX_USER;++i) {
 		m_vSceneObject.emplace_back(make_unique<Player>());
+	}
+}
+
+void GameFrameWork::InitMap()
+{
+	int viewSize = 20;
+	int rectSize = gRectHeightSize / viewSize; // 체스판 한 칸의 크기
+	int boardSize = rectSize * viewSize;       // 체스판 전체 크기
+
+	int centerCustomXpos = (gRectWidthSize - gRectHeightSize) / 2;
+	RECT rect;
+	for (int y = 0; y < COL_Y; y++) {
+		for (int x = 0; x < ROW_X; x++) {
+			rect.left = (x * rectSize) + centerCustomXpos;
+			rect.top = y * rectSize;
+			rect.right = ((x + 1) * rectSize) + centerCustomXpos;
+			rect.bottom = (y + 1) * rectSize;
+
+			PanPosition[x][y] = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
+		}
 	}
 }
 
@@ -56,7 +78,7 @@ int cnt = 0;
 void GameFrameWork::AddPlayerObject(void* buffer)
 {
 	cnt++;
-	SC_ADD_PLAYER_PACKET* packet = reinterpret_cast<SC_ADD_PLAYER_PACKET*>(buffer);
+	SC_ADD_OBJECT_PACKET* packet = reinterpret_cast<SC_ADD_OBJECT_PACKET*>(buffer);
 
 	//int newId = -1;
 	//for (auto& so : m_vSceneObject) {
@@ -69,7 +91,7 @@ void GameFrameWork::AddPlayerObject(void* buffer)
 	//}
 	int newId = packet->id;
 	m_vSceneObject[newId]->SetId(packet->id);
-	m_vSceneObject[newId]->SetPosition(packet->pos);
+	m_vSceneObject[newId]->SetPosition(Vector2(packet->x, packet->y));
 }
 
 void GameFrameWork::DelPlayerObject()
@@ -92,31 +114,25 @@ void GameFrameWork::WriteData()
 
 	while (buffer[0] != 0)
 	{
-		switch (GameCommand_Type(buffer[1]))
+		switch (buffer[2])
 		{
-		case GameCommand_Type::NONE: {
-			SC_NONE_TYPE_PACKET packet;
-			memcpy(&packet, buffer.data(), sizeof(SC_NONE_TYPE_PACKET));
-			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_NONE_TYPE_PACKET));
-			break;
-		}
-		case GameCommand_Type::LOGIN: {
-			SC_LOGIN_PACKET* packet = reinterpret_cast<SC_LOGIN_PACKET*>(buffer.data());
+		case SC_LOGIN_INFO: {
+			SC_LOGIN_INFO_PACKET* packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(buffer.data());
 			m_playerId = packet->id; // 메인 클라이언트 Id Set
 			m_vSceneObject[m_playerId]->SetId(packet->id);
-			m_vSceneObject[m_playerId]->SetPosition(packet->pos);
-			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_LOGIN_PACKET));
+			m_vSceneObject[m_playerId]->SetPosition(Vector2(packet->x, packet->y));
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_LOGIN_INFO_PACKET));
 			break;
 		}
-		case GameCommand_Type::MOVE: {
-			SC_MOVE_PLAYER_PACKET* packet = reinterpret_cast<SC_MOVE_PLAYER_PACKET*>(buffer.data());
-			m_vSceneObject[packet->id]->SetPosition(packet->pos);
-			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_MOVE_PLAYER_PACKET));
+		case SC_MOVE_OBJECT: {
+			SC_MOVE_OBJECT_PACKET* packet = reinterpret_cast<SC_MOVE_OBJECT_PACKET*>(buffer.data());
+			m_vSceneObject[packet->id]->SetPosition(Vector2(packet->x, packet->y));
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_MOVE_OBJECT_PACKET));
 			break;
 		}
-		case GameCommand_Type::ADD_PLAYER: {
+		case SC_ADD_OBJECT: {
 			AddPlayerObject(buffer.data());
-			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_ADD_PLAYER_PACKET));
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_ADD_OBJECT_PACKET));
 			break;
 		}
 		default:

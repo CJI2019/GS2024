@@ -13,7 +13,7 @@ Player::~Player()
 {
 }
 
-void Player::Draw(HDC& hdc,int rectSize) const
+void Player::Draw(HDC& hdc,int rectSize,POINT& offset) const
 {
     // 황금색 말 그리기
     // 황금색 브러시 생성
@@ -26,11 +26,12 @@ void Player::Draw(HDC& hdc,int rectSize) const
     HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
 
     // 체스판의 중앙에 말을 배치
-    POINT curpos = GetPosition();
+    Vector2 curpos = GetPosition();
     POINT** PanPos = GameFrameWork::GetPanPosition();
 
     POINT pos = PanPos[curpos.x][curpos.y];
-
+    pos.x -= offset.x;
+    pos.y -= offset.y;
     UINT8 interval = rectSize / 2;
     Ellipse(hdc, pos.x - interval, pos.y - interval, pos.x + interval, pos.y + interval);
 
@@ -65,8 +66,9 @@ void Player::Move(DWORD Dir,float elapsedTime)
 
     if (p_Dir != PlayerMoveDir::NONE) {
         CS_MOVE_PACKET packet;
+        packet.type = CS_MOVE;
         packet.size = sizeof(CS_MOVE_PACKET);
-        packet.Dir = p_Dir;
+        packet.direction = static_cast<char>(p_Dir);
         serverFramework.SendReserve(&packet, packet.size);
     }
 
