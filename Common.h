@@ -1,11 +1,11 @@
 #pragma once
-//#include "stdafx.h"
 #include "../../Protocol.h"
 
 constexpr int BUFSIZE = 256;
 
 #define ROW_X 2000 // 정사각형이므로 하나만 사용해도 무방
 #define COL_Y 2000
+#define VIEW_RANGE 8*8
 
 enum class PlayerMoveDir : BYTE {
 	UP = 0,

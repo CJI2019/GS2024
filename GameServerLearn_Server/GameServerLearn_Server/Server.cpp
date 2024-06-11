@@ -1,8 +1,6 @@
 #pragma once
 #include "stdafx.h"
-
 #include "Server.h"
-#include "ClientInfo.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -223,41 +221,13 @@ void Server::Disconnect(int c_id)
 			if (pl.m_cur_state != STATE::ST_INGAME) continue;
 		}
 		if (pl.m_id == c_id) continue;
+
+		pl.Send_remove_player(c_id);
 	}
 	closesocket(m_aClientInfos[c_id].m_sock);
 
 	lock_guard<mutex> ll(m_aClientInfos[c_id].m_mtxlock);
 	m_aClientInfos[c_id].m_cur_state = STATE::ST_FREE;
-}
-
-
-
-void Server::ClientExit(LPWSAOVERLAPPED wsaover)
-{
-	//int id = m_umClientInfos[wsaover].playerinfo.id;
-
-	//m_playerinfos[id] = nullptr;
-
-	//m_umClientInfos.erase(wsaover);
-
-	//auto p = find(m_playerinfos.begin(), m_playerinfos.end(), [id](const PlayerInfo& a) {
-	//	return a.id == id;
-	//	});
-
-	//if (p != m_playerinfos.end()) {
-	//	m_playerinfos[id] = nullptr;
-	//	//m_playerinfos.erase(p);
-	//}
-
-	//std::cout << id << "번 클라이언트가 연결을 종료했습니다." << std::endl;
-}
-
-//버터에 데이터를 바이트 형태로 넣는다.(send할 데이터를 담을것임)
-void Server::WriteToBuffer(std::vector<BYTE>& buffer,void* data, size_t size)
-{
-	for (int i = 0;i < size;++i) {
-		buffer.push_back(((BYTE*)data)[i]);
-	}
 }
 
 void Server::error_display(const char* msg, int err_no)
@@ -271,18 +241,4 @@ void Server::error_display(const char* msg, int err_no)
 	std::cout << msg;
 	std::wcout << msgbuf << std::endl;
 	LocalFree(msgbuf);
-}
-
-// [0] [1] [2]
-void Server::WriteServerBuffer(std::vector<BYTE>& buffer, PlayerInfo* playerinfo)
-{
-	//m_playerinfos[playerinfo->id] = playerinfo;
-
-	BYTE clientCount{};
-	for (auto& info : m_playerinfos) {
-		if(!info) continue;
-		WriteToBuffer(buffer, info, sizeof(PlayerInfo));
-		clientCount++;
-	}
-	buffer.insert(buffer.begin(), clientCount);
 }

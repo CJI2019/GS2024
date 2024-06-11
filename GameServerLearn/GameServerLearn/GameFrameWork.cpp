@@ -81,23 +81,18 @@ void GameFrameWork::AddPlayerObject(void* buffer)
 	m_objectCount++;
 	SC_ADD_OBJECT_PACKET* packet = reinterpret_cast<SC_ADD_OBJECT_PACKET*>(buffer);
 
-	//int newId = -1;
-	//for (auto& so : m_vSceneObject) {
-	//	if (so->GetId() != -1) continue;
-	//	newId = so->GetId();
-	//	break;
-	//}
-	//if (newId == -1) { // 남은 자리가 없음 추가 불가능
-	//	return;
-	//}
 	int newId = packet->id;
 	m_vSceneObject[newId]->SetId(packet->id);
 	m_vSceneObject[newId]->SetPosition(Vector2(packet->x, packet->y));
 }
 
-void GameFrameWork::DelPlayerObject()
+void GameFrameWork::DelPlayerObject(void* buffer)
 {
-	m_vSceneObject.erase(m_vSceneObject.end() - 1);
+	m_objectCount--;
+	SC_REMOVE_OBJECT_PACKET* packet = reinterpret_cast<SC_REMOVE_OBJECT_PACKET*>(buffer);
+	// 객체의 데이터를 초기화 시킨다.
+	m_vSceneObject[packet->id]->SetId(-1);
+	//m_vSceneObject.erase(m_vSceneObject.begin() + packet->id);
 }
 
 void GameFrameWork::Update(float elapsedTime)
@@ -160,6 +155,11 @@ void GameFrameWork::WriteData()
 		case SC_ADD_OBJECT: {
 			AddPlayerObject(buffer.data());
 			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_ADD_OBJECT_PACKET));
+			break;
+		}
+		case SC_REMOVE_OBJECT: {
+			DelPlayerObject(buffer.data());
+			buffer.erase(buffer.begin(), buffer.begin() + sizeof(SC_REMOVE_OBJECT_PACKET));
 			break;
 		}
 		default: {

@@ -5,6 +5,7 @@
 #include <MSWSock.h>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <cassert>
 #include <thread>
 #include <mutex>

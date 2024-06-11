@@ -25,7 +25,7 @@ public:
 	void KeyInput(float elapsedTime);
 
 	void AddPlayerObject(void* buffer);
-	void DelPlayerObject();
+	void DelPlayerObject(void* buffer);
 
 	static POINT** GetPanPosition();
 	vector<unique_ptr<Object>>& GetSceneObjects();

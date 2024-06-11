@@ -1,9 +1,9 @@
 #pragma once
+#include "DataBase.h"
+#include "ClientInfo.h"
 
 #define serverFramework Server::GetInstance()
 
-
-class ClientInfo;
 
 class Server
 {
@@ -23,11 +23,7 @@ public:
 	void Accept();
 
 	static void Disconnect(int c_id);
-	void ClientExit(LPWSAOVERLAPPED wsaover);
 	static void error_display(const char* msg, int err_no);
-
-
-	void WriteToBuffer(std::vector<BYTE>& buffer,void* data, size_t size);
 protected:
 	static SOCKET m_Server_sock;
 	static SOCKET m_cSock;
@@ -38,13 +34,9 @@ protected:
 
 	UINT m_iClient_count = 0; //접속한 개수가 아닌 접속했던 클라의 개수
 
-	std::vector<BYTE> m_CmdList;
-
-	std::vector<PlayerInfo*> m_playerinfos;
-
+	Sector m_Sector;
 public:
 	std::array<ClientInfo, MAX_USER>& GetClientInfo() { return m_aClientInfos; }
 
-	void WriteServerBuffer(std::vector<BYTE>& buffer, PlayerInfo* playerinfo);
-	
+	Sector& GetSector() { return m_Sector; }
 };

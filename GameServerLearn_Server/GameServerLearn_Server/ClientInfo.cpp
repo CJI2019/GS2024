@@ -93,30 +93,30 @@ void ClientInfo::ProcessPacket(char* packet)
     {
     case CS_LOGIN: {
         std::cout << "[" << m_id << "] ·Î±×ÀÎ\n";
-        std::array<ClientInfo, MAX_USER>& infos = serverFramework.GetClientInfo();
-        infos[m_id].Send_login();
+        Send_login();
         {
             std::lock_guard<std::mutex> ll(m_mtxlock);
             m_cur_state = STATE::ST_INGAME;
         }
 
+        std::array<ClientInfo, MAX_USER>& infos = serverFramework.GetClientInfo();
         for (auto& cl : infos) {
             {
                 std::lock_guard<std::mutex> ll(cl.m_mtxlock);
                 if (cl.m_cur_state != STATE::ST_INGAME) continue;
             }
             if (cl.m_id == m_id) continue;
+            if (!InViewRange(cl.m_id)) continue; // ½Ã¾ß¿¡ ÀÖÁö ¾ÊÀ¸¸é Ãß°¡ÇÏÁö ¾ÊÀ½.
 
            // cl.m_mtxlock.lock();
             cl.Send_add_player(m_id);
            // cl.m_mtxlock.unlock();
 
             //infos[m_id].m_mtxlock.lock();
-            infos[m_id].Send_add_player(cl.m_id);
+            Send_add_player(cl.m_id);
             //std::cout << "[" << m_id << "] ¿¡°Ô " << "Add Player Send\n";
             //infos[m_id].m_mtxlock.unlock();
 		}
-
         break;
     }
     case CS_MOVE: {
@@ -126,6 +126,7 @@ void ClientInfo::ProcessPacket(char* packet)
         //m_mtxlock.lock();
         m_LastMoveTime = p->move_time;
         PlayerMove(p->direction);
+
         Send_move_player(p);
         
         //m_mtxlock.unlock();
@@ -154,6 +155,9 @@ void ClientInfo::Send_login()
 
     playerinfo.pos.x = dis(gen);
     playerinfo.pos.y = dis(gen);
+    //playerinfo.pos.x = 0;
+    //playerinfo.pos.y = 0;
+    m_sector_Pos = serverFramework.GetSector().PushSectorId(playerinfo.pos, m_id);
 
     sc_p.x = playerinfo.pos.x;
     sc_p.y = playerinfo.pos.y;
@@ -177,15 +181,71 @@ void ClientInfo::Send_move_player(void* packet) // ±»ÀÌ ¸Å°³º¯¼ö¸¦ ¹ÞÀ» ÇÊ¿ä´Â Ç
     Send(&sc_p);
 
     auto& infos = serverFramework.GetClientInfo();
-    for (auto& info : infos) {
-        if (info.m_cur_state != STATE::ST_INGAME) continue;
-        if (info.m_id == m_id) continue;
-        info.Send(&sc_p);
+
+    m_mtxView.lock();
+    std::unordered_set<int> old_View(m_viewList);
+    m_mtxView.unlock();
+    std::unordered_set<int> new_View;
+
+    Sector& sectors = serverFramework.GetSector();
+    if (!sectors.InCurrentSector(playerinfo.pos, m_sector_Pos)){
+        // ÇöÀç ¼½ÅÍ¿¡ ¾ø´Ù¸é ¼½ÅÍ¸¦ °»½ÅÇØÁà¾ßÇÔ.
+        sectors.PopSectorId(m_sector_Pos, m_id);
+        m_sector_Pos = sectors.PushSectorId(playerinfo.pos, m_id);
+    }
+
+    std::unordered_set<int> cur_sector = sectors.GetCurrentSector(m_sector_Pos);
+
+    // °°Àº ¼½ÅÍ ³»¿¡¼­¸¸ º¸ÀÌ´Â °´Ã¼¸¦ ¼±º°ÇÏµµ·Ï ÇÑ´Ù.
+    for (auto& c_id : cur_sector) { // º¸ÀÌ´Â °´Ã¼ ¼±º°
+        if (infos[c_id].m_cur_state != STATE::ST_INGAME) continue;
+        if (infos[c_id].m_id == m_id) continue;
+        if (InViewRange(infos[c_id].m_id)) {
+            new_View.insert(infos[c_id].m_id);
+        }
+    }
+
+    for (auto& c_id : new_View) { // Player Ãß°¡ ÀÛ¾÷
+        if (infos[c_id].m_cur_state != STATE::ST_INGAME) continue;
+        if (infos[c_id].m_id == m_id) continue;
+
+        infos[c_id].m_mtxView.lock();
+        if (infos[c_id].m_viewList.count(m_id)) { // »ó´ë¹æÀÇ View¿¡ Á¸ÀçÇÒ¶§
+            infos[c_id].m_mtxView.unlock();
+            infos[c_id].Send(&sc_p);
+        }
+        else {
+            infos[c_id].m_mtxView.unlock();
+            infos[c_id].Send_add_player(m_id);
+        }
+        
+        m_mtxView.lock();
+        if (m_viewList.count(c_id) == 0) {
+            m_mtxView.unlock();
+            Send_add_player(c_id);
+        }
+        else {
+            m_mtxView.unlock();
+        }
+    }
+
+    for (auto& c_id : old_View) {
+        if (infos[c_id].m_cur_state != STATE::ST_INGAME) continue;
+        if (infos[c_id].m_id == m_id) continue;
+
+        if (new_View.count(c_id) == 0) { // ÃÖ½ÅÀÇ new_View¿¡ old_ViewÀÇ ¿ä¼Ò°¡ ¾øÀ»°æ¿ì 
+            Send_remove_player(c_id);
+            infos[c_id].Send_remove_player(m_id);
+        }
     }
 }
 
 void ClientInfo::Send_add_player(int c_id)
 {
+    m_mtxView.lock();
+    m_viewList.insert(c_id); // unordered_setÀ» ÀÌ¿ëÇÏ¹Ç·Î ¿ø¼Ò´Â À¯ÀÏÇÔ.
+    m_mtxView.unlock();
+
     SC_ADD_OBJECT_PACKET sc_p;
 
     sc_p.type = SC_ADD_OBJECT;
@@ -198,8 +258,28 @@ void ClientInfo::Send_add_player(int c_id)
 
     Send(&sc_p);
     //std::cout << "[" << m_id << "] ¿¡°Ô Send Add [" << c_id << "] Pos(" << sc_p.x << "," << sc_p.y << ")" << std::endl;
-    
 }
+
+void ClientInfo::Send_remove_player(int c_id)
+{
+    m_mtxView.lock();
+    if (m_viewList.count(c_id) != 0) {
+        m_viewList.erase(c_id);
+    }
+    else {
+        m_mtxView.unlock();
+        return;
+    }
+    m_mtxView.unlock();
+    SC_REMOVE_OBJECT_PACKET sc_p;
+
+    sc_p.type = SC_REMOVE_OBJECT;
+    sc_p.id = c_id;
+    sc_p.size = sizeof(SC_REMOVE_OBJECT_PACKET);
+
+    Send(&sc_p);
+}
+
 
 void ClientInfo::PlayerMove(char dir)
 {
@@ -238,7 +318,17 @@ void ClientInfo::PlayerMove(char dir)
 
 void ClientInfo::WriteData()
 {
-    m_SendReserveList.clear();
-    serverFramework.WriteServerBuffer(m_SendReserveList, &playerinfo);
+    //m_SendReserveList.clear();
+    //serverFramework.WriteServerBuffer(m_SendReserveList, &playerinfo);
 
+}
+
+bool ClientInfo::InViewRange(int c_id)
+{
+    auto& infos = serverFramework.GetClientInfo();
+
+    int Cx = infos[c_id].playerinfo.pos.x - playerinfo.pos.x;
+    int Cy = infos[c_id].playerinfo.pos.y - playerinfo.pos.y;
+
+    return Cx * Cx + Cy * Cy < VIEW_RANGE;
 }
