@@ -49,22 +49,22 @@ void Player::Move(DWORD Dir,float elapsedTime)
         return;
     }
 
-    PlayerMoveDir p_Dir = PlayerMoveDir::NONE;
+    MoveDir p_Dir = MoveDir::NONE;
     // 플레이어는 한칸씩만 움직임.
     if (Dir & DIR_RIGHT) {
-        p_Dir = PlayerMoveDir::RIGHT;
+        p_Dir = MoveDir::RIGHT;
     }
     else if (Dir & DIR_LEFT) {
-        p_Dir = PlayerMoveDir::LEFT;
+        p_Dir = MoveDir::LEFT;
     }
     else if (Dir & DIR_UP) {
-        p_Dir = PlayerMoveDir::UP;
+        p_Dir = MoveDir::UP;
     }
     else if (Dir & DIR_DOWN) {
-        p_Dir = PlayerMoveDir::DOWN;
+        p_Dir = MoveDir::DOWN;
     }
 
-    if (p_Dir != PlayerMoveDir::NONE) {
+    if (p_Dir != MoveDir::NONE) {
         CS_MOVE_PACKET packet;
         packet.type = CS_MOVE;
         packet.size = sizeof(CS_MOVE_PACKET);
@@ -72,6 +72,41 @@ void Player::Move(DWORD Dir,float elapsedTime)
         serverFramework.SendReserve(&packet, packet.size);
     }
 
-    m_fMoveLimit = 0.05f;
+    m_fMoveLimit = 0.00f;
 
+}
+
+NPC::NPC()
+{
+}
+
+NPC::~NPC()
+{
+}
+
+void NPC::Draw(HDC& hdc, int rectSize, POINT& offset) const
+{
+    COLORREF redColor = RGB(200, 0, 0); // 빨간색 오브젝트
+    HBRUSH hBrush = CreateSolidBrush(redColor);
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBrush);
+
+    // 말의 외곽선을 위한 펜 생성
+    HPEN hPen = CreatePen(PS_SOLID, 1, redColor);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+
+    // 체스판의 중앙에 말을 배치
+    Vector2 curpos = GetPosition();
+    POINT** PanPos = GameFrameWork::GetPanPosition();
+
+    POINT pos = PanPos[curpos.x][curpos.y];
+    pos.x -= offset.x;
+    pos.y -= offset.y;
+    UINT8 interval = rectSize / 2;
+    Ellipse(hdc, pos.x - interval, pos.y - interval, pos.x + interval, pos.y + interval);
+
+    // 리소스 정리
+    SelectObject(hdc, hOldBrush);
+    DeleteObject(hBrush);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPen);
 }

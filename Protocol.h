@@ -24,6 +24,9 @@ constexpr char SC_MOVE_OBJECT = 6;
 constexpr char SC_CHAT = 7;
 constexpr char SC_STAT_CHANGE = 8;
 
+constexpr int visual_player = 0;
+constexpr int visual_NPC1 = 1;
+constexpr int visual_NPC2 = 2;
 
 #pragma pack (push, 1)
 struct CS_LOGIN_PACKET {

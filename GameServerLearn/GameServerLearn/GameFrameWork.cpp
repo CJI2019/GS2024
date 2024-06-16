@@ -15,11 +15,15 @@ GameFrameWork::GameFrameWork()
 			PanPosition[i] = new POINT[COL_Y];
 		}
 	}
-	m_vSceneObject.reserve(MAX_USER);
+	m_vSceneObject.reserve(MAX_USER + MAX_NPC);
 	//m_vSceneObject.push_back(make_unique<Player>());
 	for (int i = 0; i < MAX_USER;++i) {
 		m_vSceneObject.emplace_back(make_unique<Player>());
 	}
+	for (int i = MAX_USER; i < MAX_USER + MAX_NPC;++i) {
+		m_vSceneObject.emplace_back(make_unique<NPC>());
+	}
+
 	m_objectCount = 0;
 }
 

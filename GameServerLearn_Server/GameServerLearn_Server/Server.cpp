@@ -6,16 +6,28 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SOCKET Server::m_Server_sock;
-SOCKET Server::m_cSock;
-OVER_ALLOC Server::m_over;
-HANDLE Server::m_hiocp;
-
-std::array<ClientInfo, MAX_USER> Server::m_aClientInfos;
-
 Server::Server()
 {
 	Init();
+	for (int i = 0; i < MAX_USER;++i) {
+		m_aObjectInfos[i] = std::make_shared<ClientInfo>();
+		m_aObjectInfos[i]->m_gameinfo.m_visual = visual_player;
+	}
+
+	for (int i = MAX_USER; i < MAX_USER+MAX_NPC;++i) {
+		m_aObjectInfos[i] = std::make_shared<NPC>();
+		m_aObjectInfos[i]->m_id = i;
+		m_aObjectInfos[i]->m_cur_state = STATE::ST_INGAME;
+		m_aObjectInfos[i]->m_gameinfo.m_visual = rand() % 2 ? visual_NPC1 : visual_NPC2;
+
+		m_aObjectInfos[i]->m_sector_Pos = m_Sector.AllocSectorId(m_aObjectInfos[i]->m_gameinfo.m_pos, m_aObjectInfos[i]->m_id);
+	}
+
+	/*for (int i = MAX_USER; i < MAX_USER + MAX_NPC;++i) {
+		PushTimer(TIMER_EVENT_TYPE::TE_RANDOM_MOVE, m_aObjectInfos[i]->m_id);
+	}*/ 
+
+	cout << "Object 초기화 완료\n" << endl;
 }
 
 Server::~Server()
@@ -57,14 +69,17 @@ void Server::Init()
 
 }
 
+void Timer_Thread();
+
 void Server::Accept()
 {
 	std::vector<std::thread> workerThreads;
 
 	int nthread = std::thread::hardware_concurrency();
-	for (int i = 0; i < nthread; ++i) {
+	for (int i = 0; i < nthread - 1; ++i) {
 		workerThreads.emplace_back(Worker_Thread);
 	}
+	workerThreads.emplace_back(Timer_Thread);
 
 	for (auto& th : workerThreads) {
 		th.join();
@@ -76,25 +91,71 @@ void Server::Accept()
 	return;
 }
 
+void Timer_Thread()
+{
+	using namespace std;
+	using namespace chrono;
+	using enum TIMER_EVENT_TYPE;
+	using enum IO_TYPE;
+
+	auto& sf = serverFramework;
+	auto& timerQueue = sf.GetTimerQueue();
+	HANDLE& hiocp = sf.GetHandle();
+
+	while (true) {
+		Timer_Event t_event;
+
+		if (!timerQueue.try_pop(t_event)) {
+			this_thread::sleep_for(1ms);
+			continue;
+		}
+
+		if (t_event.m_start_Time > system_clock::now()) {
+			timerQueue.push(move(t_event));
+			this_thread::sleep_for(1ms);
+			continue;
+		}
+
+		switch (t_event.m_event_type) {
+		case TE_RANDOM_MOVE: {
+			if (t_event.m_object_id == 200000) {
+				cout << system_clock::now() << endl;
+			}
+			OVERLAPPED_EX* over_ex = new OVERLAPPED_EX;
+			over_ex->io_type = IO_NPC_MOVE;
+			PostQueuedCompletionStatus(hiocp, 1, t_event.m_object_id, &over_ex->over);
+			break;
+		}
+		default:
+			break;
+		}
+
+	}
+}
+
 void Server::Worker_Thread( )
 {
+	using enum IO_TYPE;
+
 	DWORD recvByte;
 	ULONG_PTR key;
 	WSAOVERLAPPED* over = nullptr;
+	
+	auto& sf = serverFramework;
 
 	while (true) {
-		OVER_ALLOC* o_alloc = nullptr;
-		BOOL ret = GetQueuedCompletionStatus(m_hiocp, &recvByte, &key, &over, INFINITE);
-		o_alloc = reinterpret_cast<OVER_ALLOC*>(over);
+		OVERLAPPED_EX* o_alloc = nullptr;
+		BOOL ret = GetQueuedCompletionStatus(sf.m_hiocp, &recvByte, &key, &over, INFINITE);
+		o_alloc = reinterpret_cast<OVERLAPPED_EX*>(over);
 
 		if (ret == false) {
-			if (o_alloc->io_type == IO_TYPE::IO_ACCEPT) {
-				std::cout << "Accept Error";
+			if (o_alloc->io_type == IO_ACCEPT) {
+				cout << "Accept Error";
 			}
 			else {
-				std::cout << "GQCS Error on client[" << key << "]\n";
-				Disconnect(static_cast<int>(key));
-				if (o_alloc->io_type == IO_TYPE::IO_SEND) {
+				cout << "GQCS Error on client[" << key << "]\n";
+				sf.Disconnect(static_cast<int>(key));
+				if (o_alloc->io_type == IO_SEND) {
 					delete o_alloc;
 				}
 				continue;
@@ -102,41 +163,51 @@ void Server::Worker_Thread( )
 		}
 
 		if (recvByte == 0 && 
-			(o_alloc->io_type == IO_TYPE::IO_RECV || o_alloc->io_type == IO_TYPE::IO_SEND))
+			(o_alloc->io_type == IO_RECV || o_alloc->io_type == IO_SEND))
 		{
-			Disconnect(static_cast<int>(key));
-			if (o_alloc->io_type == IO_TYPE::IO_SEND) {
+			sf.Disconnect(static_cast<int>(key));
+			if (o_alloc->io_type == IO_SEND) {
 				delete o_alloc;
 			}
 			continue;
 		}
 
 		switch (o_alloc->io_type) {
-		case IO_TYPE::IO_ACCEPT: {
-			Accept_Logic(o_alloc);
+		case IO_ACCEPT: {
+			sf.Accept_Logic(o_alloc);
 			break;
 		}
-		case IO_TYPE::IO_RECV: {
-			int remain_data = recvByte + m_aClientInfos[key].m_prev_remain_byte;
+		case IO_RECV: {
+			shared_ptr<ClientInfo> cl_info = static_pointer_cast<ClientInfo>(sf.m_aObjectInfos[key]);
+
+			int remain_data = recvByte + cl_info->m_prev_remain_byte;
 			char* p = reinterpret_cast<CHAR*>(o_alloc->send_buf);
 			while (remain_data > 0) {
 				int packet_size = p[0];
 				if (packet_size <= remain_data) {
-					m_aClientInfos[key].ProcessPacket(p);
+					// Player인 것만 캐스팅 시켜서 사용하면 되는데..
+					cl_info->ProcessPacket(p);
 					p = p + packet_size;
 					remain_data = remain_data - packet_size;
 				}
-				else break;
+				else {
+					break;
+				}
 			}
-			m_aClientInfos[key].m_prev_remain_byte = remain_data;
+			cl_info->m_prev_remain_byte = remain_data;
 			if (remain_data > 0) {
 				memcpy(o_alloc->send_buf, p, remain_data);
 			}
-			m_aClientInfos[key].Recv();
+			cl_info->Recv();
 			break;
 		}
-		case IO_TYPE::IO_SEND:
+		case IO_SEND:
 			delete o_alloc;
+			break;
+		case IO_NPC_MOVE:
+			sf.m_aObjectInfos[key]->Move(-1); //NPC 의 랜덤무브
+			//sf.PushTimer(TIMER_EVENT_TYPE::TE_RANDOM_MOVE, key);
+			//cout << key << "NPCMOVE\n";
 			break;
 		default:
 			break;
@@ -148,38 +219,38 @@ int Server::Get_new_clientId()
 {
 	int new_Id = -1;
 	for (int i = 0; i < MAX_USER;++i) {
-		std::lock_guard<std::mutex> cl_il(m_aClientInfos[i].m_mtxlock);
+		lock_guard<mutex> cl_il(m_aObjectInfos[i]->m_mtxlock);
 
-		if (m_aClientInfos[i].m_cur_state == STATE::ST_INGAME) continue;
-		if (m_aClientInfos[i].m_cur_state == STATE::ST_ALLOC) continue;
+		if (m_aObjectInfos[i]->m_cur_state == STATE::ST_INGAME) continue;
+		if (m_aObjectInfos[i]->m_cur_state == STATE::ST_ALLOC) continue;
 		new_Id = i;
 		break;
 	}
 	return new_Id;
 }
 
-void Server::Accept_Logic(OVER_ALLOC* o_alloc)
+void Server::Accept_Logic(OVERLAPPED_EX* o_alloc)
 {
 	int client_Id = Get_new_clientId();
 
 	if (client_Id != -1) {
-		{// lock_guard로 하는게 그냥 m_aClientInfos[client_Id].m_mtxlock.lock 이랑 무슨차이지?
-			std::lock_guard<std::mutex> mtx(m_aClientInfos[client_Id].m_mtxlock);
-			m_aClientInfos[client_Id].m_cur_state = STATE::ST_ALLOC;
+		{
+			std::lock_guard<std::mutex> mtx(m_aObjectInfos[client_Id]->m_mtxlock);
+			m_aObjectInfos[client_Id]->m_cur_state = STATE::ST_ALLOC;
 		}
-
-		m_aClientInfos[client_Id].m_id = client_Id;
-		m_aClientInfos[client_Id].m_name[0] = 0;
-		m_aClientInfos[client_Id].m_prev_remain_byte = 0;
-		m_aClientInfos[client_Id].m_sock = m_cSock;
+		shared_ptr<ClientInfo> cl_info = static_pointer_cast<ClientInfo>(m_aObjectInfos[client_Id]);
+		cl_info->m_id = client_Id;
+		cl_info->m_name[0] = 0;
+		cl_info->m_prev_remain_byte = 0;
+		cl_info->m_sock = m_cSock;
 		CreateIoCompletionPort(reinterpret_cast<HANDLE>(m_cSock),
 			m_hiocp, client_Id, 0);
-		m_aClientInfos[client_Id].Recv();
+		cl_info->Recv();
 		m_cSock = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
 
 	}
 	else {
-		std::cout << "Full of users.\n";
+		cout << "Full of users.\n";
 	}
 
 	ZeroMemory(&m_over.over, sizeof(m_over.over));
@@ -207,27 +278,42 @@ void Server::Accept_Logic(OVER_ALLOC* o_alloc)
 	inet_ntop(AF_INET, &remoteSockaddr->sin_addr, remoteAddress, INET_ADDRSTRLEN);
 	int remotePort = ntohs(remoteSockaddr->sin_port);
 
-	std::cout << "[" << client_Id << "]" << "Client IP: " << remoteAddress << ", Port: " << remotePort << std::endl;
+	//cout << "[" << client_Id << "]" << "Client IP: " << remoteAddress << ", Port: " << remotePort << endl;
 
 }
 
 void Server::Disconnect(int c_id)
 {
-	using namespace std;
+	m_aObjectInfos[c_id]->m_mtxView.lock();
+	auto oldView = m_aObjectInfos[c_id]->m_viewList;
+	m_aObjectInfos[c_id]->m_mtxView.unlock();
 
-	for (auto& pl : m_aClientInfos) { // 다른 플레이어에게 c_id 플레이어를 삭제를 알림.
+	for (auto& view_id : oldView) { // View에 있던 다른 플레이어에게 c_id 플레이어를 삭제를 알림.
 		{
-			lock_guard<mutex> ll(pl.m_mtxlock);
-			if (pl.m_cur_state != STATE::ST_INGAME) continue;
+			lock_guard<mutex> ll(m_aObjectInfos[view_id]->m_mtxlock);
+			if (m_aObjectInfos[view_id]->m_cur_state != STATE::ST_INGAME) continue;
 		}
-		if (pl.m_id == c_id) continue;
+		if (m_aObjectInfos[view_id]->m_id == c_id) continue;
 
-		pl.Send_remove_player(c_id);
+		m_aObjectInfos[view_id]->Send_remove_player(c_id);
 	}
-	closesocket(m_aClientInfos[c_id].m_sock);
+	closesocket(static_pointer_cast<ClientInfo>(m_aObjectInfos[c_id])->m_sock);
 
-	lock_guard<mutex> ll(m_aClientInfos[c_id].m_mtxlock);
-	m_aClientInfos[c_id].m_cur_state = STATE::ST_FREE;
+	lock_guard<mutex> ll(m_aObjectInfos[c_id]->m_mtxlock);
+	m_aObjectInfos[c_id]->m_cur_state = STATE::ST_FREE;
+	m_aObjectInfos[c_id]->m_viewList.clear();
+	m_aObjectInfos[c_id]->m_id = -1;
+}
+
+void Server::PushTimer(TIMER_EVENT_TYPE event_type, int object_id)
+{
+	Timer_Event t_event;
+
+	t_event.m_event_type = event_type;
+	t_event.m_object_id = object_id;
+	t_event.m_start_Time = std::chrono::system_clock::now() + 1s;
+	
+	m_timerQueue.push(t_event);
 }
 
 void Server::error_display(const char* msg, int err_no)

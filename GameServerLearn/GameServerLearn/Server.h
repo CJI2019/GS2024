@@ -29,7 +29,7 @@ public:
 
 	//void Worker_Thread();
 //protected:
-	OVER_ALLOC m_over_alloc;
+	OVERLAPPED_EX m_over_ex;
 
 	SOCKET m_Sock;
 	WSABUF wsabuf[1];

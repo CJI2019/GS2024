@@ -16,7 +16,7 @@ std::unordered_set<int> Sector::GetCurrentSector(Vector2& sec_pos)
 	return m_Sectors[sec_pos.x][sec_pos.y];
 }
 
-Vector2 Sector::PushSectorId(Vector2& pl_pos,int c_id)
+Vector2 Sector::AllocSectorId(Vector2& pl_pos,int c_id)
 {
 	for (int y = 0; y < SECTOR_COL; ++y) {
 		for (int x = 0; x < SECTOR_ROW;++x) {
@@ -35,6 +35,12 @@ Vector2 Sector::PushSectorId(Vector2& pl_pos,int c_id)
 	// 반드시 할당 받아야 한다. 할당 받지 못한다면 위 코드 또는 좌표가 잘못 된것
 	assert(0);
 	return Vector2(-1, -1);
+}
+
+void Sector::PushSectorId(Vector2& sec_pos, int c_id)
+{
+	std::lock_guard<std::mutex> ls(m_mtxSector);
+	m_Sectors[sec_pos.x][sec_pos.y].insert(c_id);
 }
 
 void Sector::PopSectorId(Vector2& sec_pos,int c_id)

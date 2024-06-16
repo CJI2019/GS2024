@@ -13,8 +13,11 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Protocol">
+    <Filter Include="Common">
       <UniqueIdentifier>{a76e1905-d008-4d09-bc05-7af528328c5a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common\Header">
+      <UniqueIdentifier>{273053c0-28fc-4ecf-952d-dc260d8c24bf}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -33,6 +36,12 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="NPC.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Object.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Server.h">
@@ -47,11 +56,17 @@
     <ClInclude Include="stdafx.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Protocol.h">
-      <Filter>Protocol</Filter>
+    <ClInclude Include="NPC.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Object.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Common.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>Common\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Protocol.h">
+      <Filter>Common\Header</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

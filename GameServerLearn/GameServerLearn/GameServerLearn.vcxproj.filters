@@ -16,8 +16,11 @@
     <Filter Include="Sever">
       <UniqueIdentifier>{ff13bf4d-b2e0-4005-9311-345478700a2d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Protocol">
+    <Filter Include="Common">
       <UniqueIdentifier>{9486b2bc-f2ff-4696-ba1d-a7418ff1a35f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common\Header">
+      <UniqueIdentifier>{9933228d-a990-4270-985f-b5d11e77f1b4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -43,10 +46,10 @@
       <Filter>Sever</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Protocol.h">
-      <Filter>Protocol</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Common.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

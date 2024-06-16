@@ -95,7 +95,7 @@ void Server::Send()
 	memcpy(buf, m_SendReserveList.data(), m_SendReserveList.size());
 
 	//over->SetSendPacket(buf);
-	OVER_ALLOC* over = new OVER_ALLOC(buf);
+	OVERLAPPED_EX* over = new OVERLAPPED_EX(buf);
 
 	DWORD send_size;
 	int res = WSASend(m_Sock, &over->m_wsabuf, 1, &send_size, 0, &over->over, nullptr);
@@ -111,16 +111,16 @@ void Server::Send()
 
 void Server::Recv()
 {
-	//OVER_ALLOC* m_over_alloc = new OVER_ALLOC;
+	//OVER_ALLOC* m_over_ex = new OVER_ALLOC;
 
-	//m_over_alloc->RecvPrepare(packet_buf);
-	m_over_alloc.m_wsabuf.buf = packet_buf + remain_recv_byte;
-	m_over_alloc.m_wsabuf.len = BUFSIZE - remain_recv_byte;
+	//m_over_ex->RecvPrepare(packet_buf);
+	m_over_ex.m_wsabuf.buf = packet_buf + remain_recv_byte;
+	m_over_ex.m_wsabuf.len = BUFSIZE - remain_recv_byte;
 	remain_recv_byte = 0;
 
 	DWORD recv_size{};
 	DWORD recv_flag = 0;
-	int res = WSARecv(m_Sock, &m_over_alloc.m_wsabuf, 1, &recv_size, &recv_flag, nullptr/*&m_over_alloc->over*/, nullptr);
+	int res = WSARecv(m_Sock, &m_over_ex.m_wsabuf, 1, &recv_size, &recv_flag, nullptr/*&m_over_ex->over*/, nullptr);
 
 	if (res != 0) {
 		int error = WSAGetLastError();
@@ -132,7 +132,7 @@ void Server::Recv()
 			int x = 0;
 		}
 	}
-	//delete m_over_alloc;
+	//delete m_over_ex;
 }
 
 vector<CHAR> Server::GetRecvBuffer()

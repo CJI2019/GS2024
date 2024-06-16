@@ -1,5 +1,6 @@
 #pragma once
 #include "../../Protocol.h"
+#include <random>
 
 constexpr int BUFSIZE = 256;
 
@@ -7,7 +8,9 @@ constexpr int BUFSIZE = 256;
 #define COL_Y 2000
 #define VIEW_RANGE 8*8
 
-enum class PlayerMoveDir : BYTE {
+#define Rd Random_Device::GetInstance()
+
+enum class MoveDir : BYTE {
 	UP = 0,
 	DOWN,
 	LEFT,
@@ -29,29 +32,32 @@ struct Vector2 {
 	}
 };
 
-struct PlayerInfo {
-	Vector2 pos;
+struct GameInfo {
+	Vector2 m_pos;
+	MoveDir m_cur_direction;
+	int m_visual;
 };
 
 
-enum class IO_TYPE : BYTE { IO_ACCEPT, IO_RECV, IO_SEND };
+enum class IO_TYPE : BYTE { IO_ACCEPT, IO_RECV, IO_SEND, IO_NPC_MOVE};
 enum class STATE : BYTE { ST_FREE, ST_ALLOC, ST_INGAME };
+enum class TIMER_EVENT_TYPE: BYTE {TE_RANDOM_MOVE};
 
-class OVER_ALLOC {
+class OVERLAPPED_EX {
 public:
 	WSAOVERLAPPED over;
 	WSABUF m_wsabuf;
 	unsigned char send_buf[BUFSIZE];
 	IO_TYPE io_type;
 
-	OVER_ALLOC()
+	OVERLAPPED_EX()
 	{
 		m_wsabuf.len = BUFSIZE;
 		m_wsabuf.buf = reinterpret_cast<CHAR*>(send_buf);
 		io_type = IO_TYPE::IO_RECV;
 		ZeroMemory(&over, sizeof(over));
 	}
-	OVER_ALLOC(char* packet)
+	OVERLAPPED_EX(char* packet)
 	{
 		m_wsabuf.len = packet[0];
 		m_wsabuf.buf = reinterpret_cast<CHAR*>(send_buf);
@@ -75,5 +81,24 @@ public:
 		m_wsabuf.buf = reinterpret_cast<CHAR*>(buffer);
 		io_type = IO_TYPE::IO_RECV;
 		ZeroMemory(&over, sizeof(over));
+	}
+};
+
+
+class Random_Device {
+private:
+	Random_Device(){}
+public:
+	static Random_Device& GetInstance() {
+		static Random_Device rd;
+		return rd;
+	}
+
+	std::random_device rd;
+	int Generate_Random_int(int num) {
+		static std::mt19937 gen(rd());
+		std::uniform_int_distribution<int> dis(0, num - 1);
+
+		return dis(gen);
 	}
 };
