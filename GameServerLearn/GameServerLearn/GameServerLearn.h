@@ -11,10 +11,31 @@ const COLORREF rgbBlack = 0x00000000;
 const COLORREF rgbWhite = 0x00FFFFFF;
 
 
-HFONT GetFont() {
+HFONT GetFontBig() {
     // 폰트 생성
     static HFONT hFont = CreateFont(
-        42,                        // Height
+        32,                        // Height
+        0,                         // Width
+        0,                         // Escapement
+        0,                         // Orientation
+        FW_NORMAL,                 // Weight
+        FALSE,                     // Italic
+        FALSE,                     // Underline
+        FALSE,                     // StrikeOut
+        DEFAULT_CHARSET,           // CharSet
+        OUT_DEFAULT_PRECIS,        // OutPrecision
+        CLIP_DEFAULT_PRECIS,       // ClipPrecision
+        DEFAULT_QUALITY,           // Quality
+        DEFAULT_PITCH | FF_SWISS,  // PitchAndFamily
+        _T("Arial"));              // FaceName
+
+    return hFont;
+}
+
+HFONT GetFontSmall() {
+    // 폰트 생성
+    static HFONT hFont = CreateFont(
+        22,                        // Height
         0,                         // Width
         0,                         // Escapement
         0,                         // Orientation

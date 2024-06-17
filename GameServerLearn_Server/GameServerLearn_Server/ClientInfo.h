@@ -27,7 +27,7 @@ public:
 
 	void Recv();
 	void Send(void* packet);
-	void ProcessPacket(char* packet);
+	bool ProcessPacket(char* packet);
 	void Exit();
 
 	void Send_login();
@@ -35,6 +35,10 @@ public:
 	void Send_add_object(const int& c_id, const int& visual);
 	void Send_remove_player(int c_id);
 
+	void Send_stat_change();
+	//Game
 	void Move(char dir);
+	void Attack();
+	void CalculateMaxExp();
 };
 

@@ -6,6 +6,7 @@
 
 #include "targetver.h"
 #define WIN32_LEAN_AND_MEAN             // 거의 사용되지 않는 내용을 Windows 헤더에서 제외합니다.
+
 // Windows 헤더 파일
 #include <windows.h>
 // C 런타임 헤더 파일입니다.
@@ -21,6 +22,7 @@
 #include <mutex>
 #include <thread>
 #include <tchar.h>
+#include <unordered_set>
 
 #include <iostream>
 #include <WS2tcpip.h>
@@ -31,5 +33,7 @@
 using namespace std::chrono;
 using namespace std;
 
-#define FRAME_WIDTH 1000
-#define FRAME_HEIGHT 800
+#define FRAME_WIDTH 1920
+#define FRAME_HEIGHT 1080
+
+extern WCHAR* CharToWCHAR(const char* cStr);

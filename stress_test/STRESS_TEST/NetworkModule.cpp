@@ -149,6 +149,8 @@ void ProcessPacket(int ci, unsigned char packet[])
 	case SC_ADD_OBJECT: break;
 	case SC_REMOVE_OBJECT: break;
 	case SC_CHAT: break;
+	case SC_STAT_CHANGE: break;
+	case SC_LOGIN_FAIL: break;
 	case SC_LOGIN_INFO:
 	{
 		g_clients[ci].connected = true;
@@ -324,7 +326,6 @@ void Adjust_Number_Of_Client()
 	l_packet.size = sizeof(l_packet);
 	l_packet.type = CS_LOGIN;
 	SendPacket(num_connections, &l_packet);
-
 
 	int ret = WSARecv(g_clients[num_connections].client_socket, &g_clients[num_connections].recv_over.wsabuf, 1,
 		NULL, &recv_flag, &g_clients[num_connections].recv_over.over, NULL);

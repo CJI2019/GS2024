@@ -1,4 +1,6 @@
 #pragma once
+#include "CLua.h"
+
 class Object
 {
 public:
@@ -18,7 +20,11 @@ public:
 	Vector2 m_sector_Pos;
 
 	bool m_isNPC;
+
+	//Lua
+	CLua m_cLua;
 public:
+	virtual void Exit() {}
 	virtual void Send(void* packet) {};
 	virtual void Send_login() {};
 	virtual void Send_move_player(void* packet) {};
@@ -27,8 +33,13 @@ public:
 	virtual void Send_add_object(const int& c_id, const int& visual);
 	virtual void Send_remove_player(int c_id);
 
-	bool InViewRange(int c_id);
+	//Sector
+	void SectorChangeCheck(); // Sector 변경 체크
 	void SectorMove(MoveDir dir);
+
+	//Game
+	bool InViewRange(int c_id);
     virtual void Move(char dir);
+	virtual void Attack() = 0;
 };
 

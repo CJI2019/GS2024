@@ -5,9 +5,8 @@
 #include "ClientInfo.h"
 #include "DataBase.h"
 
-ClientInfo::ClientInfo()
+ClientInfo::ClientInfo() : Object()
 {
-  
     m_prev_remain_byte = 0;
 
     m_LastMoveTime = 0;
@@ -64,18 +63,19 @@ void ClientInfo::Send(void* packet)
 
 }
 
-void ClientInfo::ProcessPacket(char* packet)
+bool ClientInfo::ProcessPacket(char* packet)
 {
     switch (packet[2])
     {
     case CS_LOGIN: {
+        CS_LOGIN_PACKET* p = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
+        m_name = p->name;
         //std::cout << "[" << m_id << "] ·Î±×ÀÎ\n";
         Send_login();
         {
             std::lock_guard<std::mutex> ll(m_mtxlock);
             m_cur_state = STATE::ST_INGAME;
         }
-
         auto& infos = serverFramework.GetObjectInfos();
         for (auto& cl : infos) {
             {
@@ -112,13 +112,41 @@ void ClientInfo::ProcessPacket(char* packet)
         //std::cout << m_gameinfo.m_pos.x << "," << m_gameinfo.m_pos.y << std::endl;
         break;
     }
+    case CS_TELEPORT: {
+        CS_TELEPORT_PACKET* p = reinterpret_cast<CS_TELEPORT_PACKET*>(packet);
+        m_gameinfo.m_pos.x = Rd.Generate_Random_int(ROW_X);
+        m_gameinfo.m_pos.y = Rd.Generate_Random_int(COL_Y);
+
+        Sector& sectors = serverFramework.GetSector();
+        if (!sectors.InCurrentSector(m_gameinfo.m_pos, m_sector_Pos)) {
+            sectors.PopSectorId(m_sector_Pos, m_id);
+            m_sector_Pos = sectors.AllocSectorId(m_gameinfo.m_pos, m_id);
+        }
+        Send_move_player(nullptr);
+        break;
+    }
+    case CS_LOGOUT: {
+        Exit();
+        return false;
+    }
     default:
         break;
     }
+    return true;
 }
 
 void ClientInfo::Exit()
 {
+    DB_ID_INFO d_data;
+    d_data.m_strUserid = m_name;
+    d_data.m_xPos = m_gameinfo.m_pos.x;
+    d_data.m_yPos = m_gameinfo.m_pos.y;
+    d_data.m_hp = m_gameinfo.m_hp;
+    d_data.m_maxhp = m_gameinfo.m_maxhp;
+    d_data.m_level = m_gameinfo.m_level;
+    d_data.m_exp = m_gameinfo.m_exp;
+    DB.DB_Process(&d_data, EXIT);
+
     serverFramework.Disconnect(m_id);
 }
 
@@ -129,18 +157,56 @@ void ClientInfo::Send_login()
     sc_p.type = SC_LOGIN_INFO;
     sc_p.id = m_id;
 
-    m_gameinfo.m_pos.x = Rd.Generate_Random_int(ROW_X);
-    m_gameinfo.m_pos.y = Rd.Generate_Random_int(COL_Y);
+    // 1. DB¿¡¼­ ID Á¤º¸°¡ ÀÖ´ÂÁö È®ÀÎÇÑ´Ù.
+    DB_ID_INFO d_data;
+    d_data.m_strUserid = m_name;
+    DB.DB_Process(&d_data, LOGIN);
+    if (d_data.m_xPos == -1) { // 2. Á¤º¸°¡ ¾ø´Ù¸é DB¿¡ ID µî·Ï.
+        d_data.m_xPos = Rd.Generate_Random_int(ROW_X);
+        d_data.m_yPos = Rd.Generate_Random_int(COL_Y);
+        d_data.m_hp = 100;
+        d_data.m_maxhp = 100;
+        d_data.m_level = 1;
+        d_data.m_exp = 0;
+        DB.DB_Process(&d_data, REGISTER);
+    }
+
+    m_gameinfo.m_pos.x = static_cast<short>(d_data.m_xPos);
+    m_gameinfo.m_pos.y = static_cast<short>(d_data.m_yPos);
+    m_gameinfo.m_exp = d_data.m_exp;
+    m_gameinfo.m_hp = d_data.m_hp;
+    m_gameinfo.m_maxhp = d_data.m_maxhp;
+    m_gameinfo.m_level = d_data.m_level;
+
+    for (;;) {
+        if (m_gameinfo.m_exp >= m_gameinfo.m_maxexp) {
+            m_gameinfo.m_maxexp *= 2;
+            continue;
+        }
+        break;
+    }
+
+    if (m_gameinfo.m_pos.x < 0 || m_gameinfo.m_pos.y < 0) {
+        serverFramework.Disconnect(m_id);
+        return;
+        //assert(0);
+    }
     //m_gameinfo.m_pos.x = 0;
     //m_gameinfo.m_pos.y = 0;
     m_sector_Pos = serverFramework.GetSector().AllocSectorId(m_gameinfo.m_pos, m_id);
 
+    sc_p.exp = m_gameinfo.m_exp;
+    sc_p.hp = m_gameinfo.m_hp;
+    sc_p.max_hp = m_gameinfo.m_maxhp;
+    sc_p.level = m_gameinfo.m_level;
     sc_p.x = m_gameinfo.m_pos.x;
     sc_p.y = m_gameinfo.m_pos.y;
     sc_p.size = sizeof(SC_LOGIN_INFO_PACKET);
 
     Send(&sc_p);
     //std::cout << "Send ·Î±×ÀÎ\n";
+    auto& sf = serverFramework;
+    sf.PushTimer(TIMER_EVENT_TYPE::TE_ATTACK, m_id,1s);
 }
 
 void ClientInfo::Send_move_player(void* packet) // ±»ÀÌ ¸Å°³º¯¼ö¸¦ ¹ÞÀ» ÇÊ¿ä´Â ÇöÀç±îÁö´Â ¾øÀ½.
@@ -163,15 +229,10 @@ void ClientInfo::Send_move_player(void* packet) // ±»ÀÌ ¸Å°³º¯¼ö¸¦ ¹ÞÀ» ÇÊ¿ä´Â Ç
     m_mtxView.unlock();
     std::unordered_set<int> new_View;
 
-    Sector& sectors = serverFramework.GetSector();
-    if (!sectors.InCurrentSector(m_gameinfo.m_pos, m_sector_Pos)){
-        // ÇöÀç ¼½ÅÍ¿¡ ¾ø´Ù¸é ¼½ÅÍ¸¦ °»½ÅÇØÁà¾ßÇÔ.
-        sectors.PopSectorId(m_sector_Pos, m_id);
-        //Dir·Î ¿òÁ÷¿´±â ‹š¹®¿¡ ¼½ÅÍ°¡ º¯ÇÑ °ÍÀÌ¹Ç·Î ¼½ÅÍ¸¦ ÇÑÄ­ ÀÌµ¿ÇÑ´Ù.
-        SectorMove(m_gameinfo.m_cur_direction);
-        sectors.PushSectorId(m_sector_Pos, m_id);
-    }
+    SectorChangeCheck();
+    auto& sectors = serverFramework.GetSector();
 
+    // SectorÀÇ °æ°è¼±¿¡¼­ view¿¡ ´ã±æ ¼ö ÀÖ´Â ´Ù¸¥ SectorÀÇ °´Ã¼µµ º¸ÀÌµµ·ÏÇÑ´Ù.
     std::unordered_set<int> cur_sector = sectors.GetCurrentSector(m_sector_Pos);
     //std::cout << "cur_sector¿¡ Á¸ÀçÇÏ´Â °´Ã¼ÀÇ °³¼ö => " << cur_sector.size() << std::endl;
     // °°Àº ¼½ÅÍ ³»¿¡¼­¸¸ º¸ÀÌ´Â °´Ã¼¸¦ ¼±º°ÇÏµµ·Ï ÇÑ´Ù.
@@ -234,8 +295,9 @@ void ClientInfo::Send_add_object(const int& c_id, const int& visual)
     sc_p.id = c_id;
     sc_p.size = sizeof(SC_ADD_OBJECT_PACKET);
     sc_p.visual = visual;
-
     auto& cl_infos = serverFramework.GetObjectInfos();
+
+    strncpy(sc_p.name, cl_infos[c_id]->m_name.c_str(), cl_infos[c_id]->m_name.size() + 1);
     sc_p.x = cl_infos[c_id]->m_gameinfo.m_pos.x;
     sc_p.y = cl_infos[c_id]->m_gameinfo.m_pos.y;
 
@@ -263,9 +325,122 @@ void ClientInfo::Send_remove_player(int c_id)
     Send(&sc_p);
 }
 
+void ClientInfo::Send_stat_change()
+{
+    SC_STAT_CHANGE_PACKET sc_p;
+    sc_p.exp = m_gameinfo.m_exp;
+    sc_p.hp = m_gameinfo.m_hp;
+    sc_p.max_hp = m_gameinfo.m_maxhp;
+    sc_p.level = m_gameinfo.m_level;
+    sc_p.size = sizeof(SC_STAT_CHANGE_PACKET);
+    sc_p.type = SC_STAT_CHANGE;
+
+    Send(&sc_p);
+}
 
 void ClientInfo::Move(char dir)
 {
     Object::Move(dir);
 }
 
+void ClientInfo::Attack()
+{
+    auto& obj_infos = serverFramework.GetObjectInfos();
+
+    std::unordered_set<int> cur_view;
+    {
+        lock_guard<mutex> vl(m_mtxView);
+        cur_view = m_viewList;
+    }
+
+
+    int nearest_id = -1;
+    int near_range = 99999999;
+    for (auto& obj_id : cur_view) {
+        if (obj_id < MAX_USER) continue; // NPC ¸¸ Ã£µµ·ÏÇÑ´Ù.
+        if (obj_infos[obj_id]->m_cur_state != STATE::ST_INGAME) continue;
+        if (obj_id == m_id) continue;
+        auto other_pos = obj_infos[obj_id]->m_gameinfo.m_pos;
+        auto my_pos = m_gameinfo.m_pos;
+        Vector2 AtoB;
+        AtoB.x = other_pos.x - my_pos.x;
+        AtoB.y = other_pos.y - my_pos.y;
+        int range = (AtoB.x * AtoB.x) + (AtoB.y * AtoB.y);
+        if (near_range > range) {
+            near_range = range;
+            nearest_id = obj_id;
+        }
+    }
+
+    if (nearest_id != -1) {
+        SC_CHAT_PACKET sc_p;
+        sc_p.id = m_id;
+        sc_p.type = SC_CHAT;
+
+        int damege = m_gameinfo.m_level * 10;
+
+        {
+            lock_guard<mutex> ll(obj_infos[nearest_id]->m_gameinfo.m_mtxhp);
+            if (obj_infos[nearest_id]->m_gameinfo.m_hp - damege > 0) {
+                obj_infos[nearest_id]->m_gameinfo.m_hp -= damege;
+            }
+            else {
+                //damege = obj_infos[nearest_id]->m_gameinfo.m_hp;
+                obj_infos[nearest_id]->m_gameinfo.m_hp = 0;
+            }
+        }
+
+        sprintf_s(sc_p.mess, CHAT_SIZE, "%s °¡ Lv.%d - %s ¸¦ %dÀÇ µ¥¹ÌÁö·Î °ø°ÝÇÏ¿´½À´Ï´Ù.\n%dÀÇ hp°¡ ³²¾Ò½À´Ï´Ù."
+            , m_name.c_str(), obj_infos[nearest_id]->m_gameinfo.m_level, obj_infos[nearest_id]->m_name.c_str(), damege, obj_infos[nearest_id]->m_gameinfo.m_hp);
+        size_t str_size = strlen(sc_p.mess);
+        sc_p.mess[str_size] = '\0';
+        sc_p.size = sizeof(SC_CHAT_PACKET) - (CHAT_SIZE - static_cast<short>(str_size + 1));
+        Send(&sc_p);
+
+        obj_infos[nearest_id]->m_gameinfo.m_mtxhp.lock();
+        if (obj_infos[nearest_id]->m_gameinfo.m_hp < 1) {
+            obj_infos[nearest_id]->m_gameinfo.m_hp = obj_infos[nearest_id]->m_gameinfo.m_maxhp;
+            obj_infos[nearest_id]->m_gameinfo.m_mtxhp.unlock();
+            int exp = obj_infos[nearest_id]->m_gameinfo.m_level * obj_infos[nearest_id]->m_gameinfo.m_level * 2;
+            m_gameinfo.m_exp += exp;
+            CalculateMaxExp();
+           
+            sprintf_s(sc_p.mess, CHAT_SIZE, "%s ¸¦ Ã³Ä¡ÇÏ¿© °æÇèÄ¡ %d ¸¦ ¾ò¾ú½À´Ï´Ù."
+                , obj_infos[nearest_id]->m_name.c_str(), exp);
+
+            size_t str_size = strlen(sc_p.mess);
+            sc_p.mess[str_size] = '\0';
+            sc_p.size = sizeof(SC_CHAT_PACKET) - (CHAT_SIZE - static_cast<short>(str_size + 1));
+            Send(&sc_p);
+            Send_stat_change();
+        }
+        else {
+            obj_infos[nearest_id]->m_gameinfo.m_mtxhp.unlock();
+        }
+    }
+
+    
+    {
+        m_mtxlock.lock();
+        if (m_cur_state == STATE::ST_INGAME) {
+            m_mtxlock.unlock();
+            serverFramework.PushTimer(TIMER_EVENT_TYPE::TE_ATTACK, m_id, 1s);
+            return;
+        }
+        m_mtxlock.unlock();
+    }
+}
+
+void ClientInfo::CalculateMaxExp()
+{
+    for (;;) {
+        if (m_gameinfo.m_exp >= m_gameinfo.m_maxexp) {
+            m_gameinfo.m_level += 1;
+            m_gameinfo.m_maxexp *= 2;
+            m_gameinfo.m_maxhp += 100;
+            m_gameinfo.m_hp = m_gameinfo.m_maxhp;
+            continue;
+        }
+        break;
+    }
+}

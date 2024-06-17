@@ -8,10 +8,16 @@ Object::Object()
     m_id = -1;
 
     m_gameinfo.m_pos = { 0,0 };
-
+    m_gameinfo.m_exp = 0;
+    m_gameinfo.m_maxexp = 100;
+    m_gameinfo.m_level = 1;
+    m_gameinfo.m_hp = 100;
+    m_gameinfo.m_maxhp = 100;
+    
     m_cur_state = STATE::ST_FREE;
 
     m_isNPC = false;
+
 }
 
 Object::~Object()
@@ -47,7 +53,17 @@ bool Object::InViewRange(int c_id)
 
     return Cx * Cx + Cy * Cy < VIEW_RANGE;
 }
-
+void Object::SectorChangeCheck()
+{
+    Sector& sectors = serverFramework.GetSector();
+    if (!sectors.InCurrentSector(m_gameinfo.m_pos, m_sector_Pos)) {
+        // 현재 섹터에 없다면 섹터를 갱신해줘야함.
+        sectors.PopSectorId(m_sector_Pos, m_id);
+        //Dir로 움직였기 떄문에 섹터가 변한 것이므로 섹터를 한칸 이동한다.
+        SectorMove(m_gameinfo.m_cur_direction);
+        sectors.PushSectorId(m_sector_Pos, m_id);
+    }
+}
 
 void Object::SectorMove(MoveDir dir)
 {

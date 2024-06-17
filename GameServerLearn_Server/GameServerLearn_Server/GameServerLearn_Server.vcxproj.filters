@@ -19,6 +19,9 @@
     <Filter Include="Common\Header">
       <UniqueIdentifier>{273053c0-28fc-4ecf-952d-dc260d8c24bf}</UniqueIdentifier>
     </Filter>
+    <Filter Include="스크립트">
+      <UniqueIdentifier>{f51639c4-3018-43d0-8819-7e46f9001154}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -40,6 +43,12 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Object.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CLua.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Sector.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
@@ -68,5 +77,21 @@
     <ClInclude Include="..\..\Protocol.h">
       <Filter>Common\Header</Filter>
     </ClInclude>
+    <ClInclude Include="CLua.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Sector.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="lua54.lib">
+      <Filter>리소스 파일</Filter>
+    </Library>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Object.lua">
+      <Filter>스크립트</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -3,13 +3,15 @@
 #include "NPC.h"
 #include "Server.h"
 
-NPC::NPC()
+NPC::NPC() : Object()
 {
 	m_gameinfo.m_pos.x = Rd.Generate_Random_int(ROW_X);
 	m_gameinfo.m_pos.y = Rd.Generate_Random_int(COL_Y);
 
 	m_isNPC = true;
 	m_isActive = false;
+
+	m_gameinfo.m_level = Rd.Generate_Random_int(100);
 }
 
 NPC::~NPC()
@@ -26,12 +28,15 @@ void NPC::Send_add_object(const int& c_id, const int& visual)
 	}
 
 	auto& sf = serverFramework;
-	sf.PushTimer(TIMER_EVENT_TYPE::TE_RANDOM_MOVE, m_id);
+	sf.PushTimer(TIMER_EVENT_TYPE::TE_NPC_RANDOM_MOVE, m_id,1s);
 }
 
 void NPC::Move(char dir)
 {
-	Object::Move(static_cast<char>(rand() % 4));
+	m_gameinfo.m_cur_direction = static_cast<MoveDir>(rand() % 4);
+	Object::Move(static_cast<char>(m_gameinfo.m_cur_direction));
+	
+	SectorChangeCheck();
 
 	SC_MOVE_OBJECT_PACKET sc_p;
 
@@ -84,7 +89,7 @@ void NPC::Move(char dir)
 	}
 
 	if (new_View.size() != 0) {
-		serverFramework.PushTimer(TIMER_EVENT_TYPE::TE_RANDOM_MOVE, m_id);
+		serverFramework.PushTimer(TIMER_EVENT_TYPE::TE_NPC_RANDOM_MOVE, m_id,1s);
 	}
 	else {
 		bool comp = true;

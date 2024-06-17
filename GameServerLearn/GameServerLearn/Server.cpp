@@ -10,37 +10,31 @@
 const char* IP_ADDRESS = "127.0.0.1";
 
 void RedirectIOToConsole() {
+	// 새로운 콘솔 창을 할당합니다.
 	AllocConsole();
 
-	// Redirect standard input, output, and error streams to the console
+	// 파일 디스크립터를 콘솔 입출력에 연결합니다.
 	FILE* fp;
-	freopen_s(&fp, "CONIN$", "r", stdin);
 	freopen_s(&fp, "CONOUT$", "w", stdout);
 	freopen_s(&fp, "CONOUT$", "w", stderr);
+	freopen_s(&fp, "CONIN$", "r", stdin);
 
-	// Set the console output code page to UTF-8 (for compatibility)
-	SetConsoleOutputCP(CP_UTF8);
-
-	// Synchronize C++ and C output streams
+	// 콘솔 입출력 스트림을 C++ 표준 스트림과 연결합니다.
 	std::ios::sync_with_stdio();
-
-	// Set locale to the user's default locale
-	std::locale::global(std::locale(""));
-
-	// Enable wide character mode for console output
-	_setmode(_fileno(stdout), _O_U16TEXT);
-	_setmode(_fileno(stderr), _O_U16TEXT);
-	_setmode(_fileno(stdin), _O_U16TEXT);
 }
 
 Server::Server()
 { 
-	//RedirectIOToConsole();
-	//cout << "Server IP를 입력해주세요 : ";
-	//char IP_char[256];
-	//cin >> IP_char;
-
+	RedirectIOToConsole();
 	std::wcout.imbue(std::locale("korean"));
+	//RedirectIOToConsole();
+	cout << "Server IP를 입력해주세요 : ";
+	char IP_char[256];
+	std::cin >> IP_char;
+	char id_name[20];
+	cout << "ID를 입력해주세요 : ";
+	std::cin >> id_name;
+
 	WSADATA wsa_data;
 	WSAStartup(MAKEWORD(2, 2), &wsa_data);
 
@@ -55,8 +49,7 @@ Server::Server()
 	SOCKADDR_IN addr_s;
 	addr_s.sin_family = AF_INET;
 	addr_s.sin_port = htons(PORT_NUM);
-	inet_pton(AF_INET, IP_ADDRESS, &addr_s.sin_addr);
-
+	inet_pton(AF_INET, IP_char /*IP_ADDRESS*/, &addr_s.sin_addr);
 
 	int res = connect(m_Sock, reinterpret_cast<sockaddr*>(&addr_s), sizeof(addr_s));
 	if (res != 0) {
@@ -69,6 +62,8 @@ Server::Server()
 	CS_LOGIN_PACKET packet;
 	packet.type = CS_LOGIN;
 	packet.size = sizeof(CS_LOGIN_PACKET);
+	strncpy(packet.name, id_name, strlen(id_name) + 1);
+	m_mainPlayerName = packet.name;
 	SendReserve(&packet, sizeof(CS_LOGIN_PACKET));
 
 	remain_recv_byte = 0;
@@ -76,6 +71,13 @@ Server::Server()
 
 Server::~Server()
 {
+	CS_LOGOUT_PACKET packet;
+	packet.type = CS_LOGOUT;
+	packet.size = sizeof(CS_LOGOUT_PACKET);
+
+	SendReserve(&packet, sizeof(CS_LOGIN_PACKET));
+	Send();
+
 	closesocket(m_Sock);
 	WSACleanup();
 }

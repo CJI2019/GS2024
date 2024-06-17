@@ -1,9 +1,13 @@
 #pragma once
 #include "../../Protocol.h"
 #include <random>
+#include <mutex>
 
 constexpr int BUFSIZE = 256;
 
+constexpr int visual_player = 0;
+constexpr int visual_NPC1 = 1;
+constexpr int visual_NPC2 = 2;
 #define ROW_X 2000 // 정사각형이므로 하나만 사용해도 무방
 #define COL_Y 2000
 #define VIEW_RANGE 8*8
@@ -36,12 +40,19 @@ struct GameInfo {
 	Vector2 m_pos;
 	MoveDir m_cur_direction;
 	int m_visual;
+
+	int m_exp;
+	int m_maxexp;
+	int m_level;
+	int m_hp;
+	std::mutex m_mtxhp;
+	int m_maxhp;
 };
 
 
-enum class IO_TYPE : BYTE { IO_ACCEPT, IO_RECV, IO_SEND, IO_NPC_MOVE};
+enum class IO_TYPE : BYTE { IO_ACCEPT, IO_RECV, IO_SEND, IO_NPC_MOVE, IO_ATTACK };
 enum class STATE : BYTE { ST_FREE, ST_ALLOC, ST_INGAME };
-enum class TIMER_EVENT_TYPE: BYTE {TE_RANDOM_MOVE};
+enum class TIMER_EVENT_TYPE: BYTE {TE_NPC_RANDOM_MOVE, TE_ATTACK};
 
 class OVERLAPPED_EX {
 public:

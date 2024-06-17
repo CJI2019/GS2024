@@ -8,10 +8,15 @@
 
 Server::Server()
 {
+	DB; // DB 접속
+	cout << "DB 접속 완료\n";
 	Init();
 	for (int i = 0; i < MAX_USER;++i) {
 		m_aObjectInfos[i] = std::make_shared<ClientInfo>();
 		m_aObjectInfos[i]->m_gameinfo.m_visual = visual_player;
+
+		// 유저는 로그인 할때 스크립트 정보를 저장하도록 변경해야함.
+		m_aObjectInfos[i]->m_cLua.SetScriptInfo(i); 
 	}
 
 	for (int i = MAX_USER; i < MAX_USER+MAX_NPC;++i) {
@@ -21,10 +26,17 @@ Server::Server()
 		m_aObjectInfos[i]->m_gameinfo.m_visual = rand() % 2 ? visual_NPC1 : visual_NPC2;
 
 		m_aObjectInfos[i]->m_sector_Pos = m_Sector.AllocSectorId(m_aObjectInfos[i]->m_gameinfo.m_pos, m_aObjectInfos[i]->m_id);
+
+		m_aObjectInfos[i]->m_cLua.SetScriptInfo(i);
+		m_aObjectInfos[i]->m_name = m_aObjectInfos[i]->m_cLua.m_name;
 	}
 
+	/*DB_ID_INFO d_data;
+	d_data.m_strUserid = "2019182042";
+	DB.DB_Process(&d_data,LOGIN);
+	cout << d_data.m_strUserid << " " << d_data.m_xPos << "," << d_data.m_yPos << endl;*/
 	/*for (int i = MAX_USER; i < MAX_USER + MAX_NPC;++i) {
-		PushTimer(TIMER_EVENT_TYPE::TE_RANDOM_MOVE, m_aObjectInfos[i]->m_id);
+		PushTimer(TIMER_EVENT_TYPE::TE_NPC_RANDOM_MOVE, m_aObjectInfos[i]->m_id);
 	}*/ 
 
 	cout << "Object 초기화 완료\n" << endl;
@@ -69,9 +81,7 @@ void Server::Init()
 
 }
 
-void Timer_Thread();
-
-void Server::Accept()
+void Server::Start()
 {
 	std::vector<std::thread> workerThreads;
 
@@ -91,7 +101,7 @@ void Server::Accept()
 	return;
 }
 
-void Timer_Thread()
+void Server::Timer_Thread()
 {
 	using namespace std;
 	using namespace chrono;
@@ -116,19 +126,24 @@ void Timer_Thread()
 			continue;
 		}
 
+		OVERLAPPED_EX* over_ex = new OVERLAPPED_EX;
 		switch (t_event.m_event_type) {
-		case TE_RANDOM_MOVE: {
-			if (t_event.m_object_id == 200000) {
+		case TE_NPC_RANDOM_MOVE: {
+			/*if (t_event.m_object_id == 200000) {
 				cout << system_clock::now() << endl;
-			}
-			OVERLAPPED_EX* over_ex = new OVERLAPPED_EX;
+			}*/
 			over_ex->io_type = IO_NPC_MOVE;
-			PostQueuedCompletionStatus(hiocp, 1, t_event.m_object_id, &over_ex->over);
+			break;
+		}
+		case TE_ATTACK: {
+			over_ex->io_type = IO_ATTACK;
 			break;
 		}
 		default:
 			break;
 		}
+
+		PostQueuedCompletionStatus(hiocp, 1, t_event.m_object_id, &over_ex->over);
 
 	}
 }
@@ -154,7 +169,8 @@ void Server::Worker_Thread( )
 			}
 			else {
 				cout << "GQCS Error on client[" << key << "]\n";
-				sf.Disconnect(static_cast<int>(key));
+				sf.m_aObjectInfos[key]->Exit();
+				//sf.Disconnect(static_cast<int>(key));
 				if (o_alloc->io_type == IO_SEND) {
 					delete o_alloc;
 				}
@@ -165,7 +181,9 @@ void Server::Worker_Thread( )
 		if (recvByte == 0 && 
 			(o_alloc->io_type == IO_RECV || o_alloc->io_type == IO_SEND))
 		{
-			sf.Disconnect(static_cast<int>(key));
+			cout << "zzz 종료\n";
+			sf.m_aObjectInfos[key]->Exit();
+			//sf.Disconnect(static_cast<int>(key));
 			if (o_alloc->io_type == IO_SEND) {
 				delete o_alloc;
 			}
@@ -182,11 +200,12 @@ void Server::Worker_Thread( )
 
 			int remain_data = recvByte + cl_info->m_prev_remain_byte;
 			char* p = reinterpret_cast<CHAR*>(o_alloc->send_buf);
+			bool p_Fail = true;
 			while (remain_data > 0) {
 				int packet_size = p[0];
 				if (packet_size <= remain_data) {
 					// Player인 것만 캐스팅 시켜서 사용하면 되는데..
-					cl_info->ProcessPacket(p);
+					p_Fail = cl_info->ProcessPacket(p);
 					p = p + packet_size;
 					remain_data = remain_data - packet_size;
 				}
@@ -198,7 +217,9 @@ void Server::Worker_Thread( )
 			if (remain_data > 0) {
 				memcpy(o_alloc->send_buf, p, remain_data);
 			}
-			cl_info->Recv();
+			if (p_Fail) {
+				cl_info->Recv();
+			}
 			break;
 		}
 		case IO_SEND:
@@ -206,8 +227,10 @@ void Server::Worker_Thread( )
 			break;
 		case IO_NPC_MOVE:
 			sf.m_aObjectInfos[key]->Move(-1); //NPC 의 랜덤무브
-			//sf.PushTimer(TIMER_EVENT_TYPE::TE_RANDOM_MOVE, key);
 			//cout << key << "NPCMOVE\n";
+			break;
+		case IO_ATTACK:
+			sf.m_aObjectInfos[key]->Attack();
 			break;
 		default:
 			break;
@@ -247,7 +270,6 @@ void Server::Accept_Logic(OVERLAPPED_EX* o_alloc)
 			m_hiocp, client_Id, 0);
 		cl_info->Recv();
 		m_cSock = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
-
 	}
 	else {
 		cout << "Full of users.\n";
@@ -305,13 +327,13 @@ void Server::Disconnect(int c_id)
 	m_aObjectInfos[c_id]->m_id = -1;
 }
 
-void Server::PushTimer(TIMER_EVENT_TYPE event_type, int object_id)
+void Server::PushTimer(TIMER_EVENT_TYPE event_type, int object_id, std::chrono::seconds sec)
 {
 	Timer_Event t_event;
 
 	t_event.m_event_type = event_type;
 	t_event.m_object_id = object_id;
-	t_event.m_start_Time = std::chrono::system_clock::now() + 1s;
+	t_event.m_start_Time = std::chrono::system_clock::now() + sec;
 	
 	m_timerQueue.push(t_event);
 }

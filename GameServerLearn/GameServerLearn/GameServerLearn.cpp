@@ -47,18 +47,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GAMESERVERLEARN));
-    
+
     MSG msg;
     gGameFrameWork.InitMap();
 
     auto lastTime = high_resolution_clock::now();
+    //auto lastTime = system_clock::now();
 
     // 메시지 루프
     while (TRUE) {
-        auto currentTime = high_resolution_clock::now();
-
-        duration<double> elapsedTime = currentTime - lastTime;
-        lastTime = currentTime;
         // 메시지 큐에 메시지가 있는지 확인
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             // 메시지 처리
@@ -71,6 +68,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             }
         }
         else {
+            auto currentTime = high_resolution_clock::now();
+            //auto currentTime = system_clock::now();
+            duration<double> elapsedTime = currentTime - lastTime;
+            //auto elapsedTime = currentTime - lastTime;
+            lastTime = currentTime;
             // 메시지 큐에 메시지가 없을 때 수행할 작업
             gGameFrameWork.Update(static_cast<float>(elapsedTime.count()));
 
@@ -129,7 +131,7 @@ BOOL InitInstance(HINSTANCE hInstance, HWND& hWnd, int nCmdShow)
       CW_USEDEFAULT, 0,
        CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);*/
    hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-       300, 100,
+       0, 0,
        FRAME_WIDTH, FRAME_HEIGHT, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
    {
@@ -147,6 +149,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_CREATE:
+        break;
     case WM_SIZE:
         {
             int width = LOWORD(lParam);  // 창의 새 너비
@@ -206,14 +210,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             int centerCustomXpos = (gRectWidthSize - gRectHeightSize) / 2;
 
             POINT** panPosition = gGameFrameWork.GetPanPosition();
-            auto& SceneObejcts = gGameFrameWork.GetSceneObjects();
+            CTile** gameMap = gGameFrameWork.GetMap();
+            auto& s_objects = gGameFrameWork.GetSceneObjects();
 
             int B_offsetX = 0; // 보드의 색을 바꾸기 위한 옵션 0이면 흰색(0,0) 1이면 검은색(0,0)
             int B_offsetY = 0; 
+            Vector2 mainPos;
             {
                 int mainPlayer_Id = gGameFrameWork.GetMainPlayerId();
                 if (mainPlayer_Id != -1) {
-                    Vector2 mainPos = SceneObejcts[mainPlayer_Id]->GetPosition();
+                    mainPos = s_objects[mainPlayer_Id]->GetPosition();
 
                     if (mainPos.x > viewSize / 2 ) {
                         B_offsetX = (mainPos.x) % 2 == 0 ? 0 : 1;
@@ -223,19 +229,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     }
                 }
             }
-            // 체스판 그리기
+            // 판 그리기
             for (int y = 0; y < viewSize; y++) {
                 for (int x = 0; x < viewSize; x++) {
+                    HBRUSH map_brush,oldmap_brush,frame_brush;
+                    if (0 <= mainPos.x - viewSize/2 + x  && mainPos.x - viewSize / 2 + x < ROW_X &&
+                        0 <= mainPos.y - viewSize / 2 + y && mainPos.y - viewSize / 2 + y < COL_Y) {
+                        frame_brush = CreateSolidBrush(RGB(0, 0, 0));
+                        map_brush = CreateSolidBrush(gameMap[mainPos.x - viewSize / 2 + x][mainPos.y - viewSize / 2 + y].color); // 외곽선을 위한 브러시
+                        oldmap_brush = (HBRUSH)SelectObject(MemDC, map_brush);
+                        //hBrush = (x + B_offsetX + y + B_offsetY) % 2 == 0 ? (HBRUSH)GetStockObject(GRAY_BRUSH) : (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+                    }
+                    else {
+                        frame_brush = (HBRUSH)GetStockObject(WHITE_BRUSH);
+                        map_brush = (HBRUSH)GetStockObject(WHITE_BRUSH);
+                        oldmap_brush = (HBRUSH)SelectObject(MemDC, map_brush);
+                    }
                     rect.left = (x * rectSize) + centerCustomXpos;
                     rect.top = y * rectSize;
                     rect.right = ((x + 1) * rectSize) + centerCustomXpos;
                     rect.bottom = (y + 1) * rectSize;
 
                     // 검은색과 흰색 칸 번갈아가며 색칠
-                    hBrush = (x + B_offsetX + y + B_offsetY) % 2 == 0 ? (HBRUSH)GetStockObject(GRAY_BRUSH) : (HBRUSH)GetStockObject(LTGRAY_BRUSH);
-                    FillRect(MemDC, &rect, hBrush);
+                    
+                    FillRect(MemDC, &rect, map_brush);
 
+                    FrameRect(MemDC, &rect, frame_brush);
+                    DeleteObject(frame_brush);
                     //panPosition[x][y] = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
+
+                    SelectObject(MemDC, oldmap_brush);
+                    DeleteObject(map_brush);
                 }
             }
 
@@ -256,7 +280,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             int mainPlayer_Id = gGameFrameWork.GetMainPlayerId();
             if (mainPlayer_Id != -1) {
-                Vector2 mainPos = SceneObejcts[mainPlayer_Id]->GetPosition();
+                Vector2 mainPos = s_objects[mainPlayer_Id]->GetPosition();
 
                 int offsetX = 0;
                 if (mainPos.x > viewSize / 2) {
@@ -267,23 +291,52 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 if (mainPos.y > viewSize / 2) {
                     offsetY = rectSize * (mainPos.y - viewSize / 2);
                 }
-
+                offsetX = rectSize * (mainPos.x - viewSize / 2);
+                offsetY = rectSize * (mainPos.y - viewSize / 2);
                 POINT offset = { offsetX,offsetY };
 
+                
+                 // 텍스트 배경을 투명하게 설정
+                SetBkMode(MemDC, TRANSPARENT);
+                //// 텍스트 색상 설정
+                SetTextColor(MemDC, RGB(0, 0, 0));
+                
                 // 오브젝트 그리기
-                for (auto& object : SceneObejcts) {
-                    if (object->GetId() == -1) continue;
-                    object->Draw(MemDC, rectSize, offset);
+                for (auto& o_id : gGameFrameWork.m_viewObjects) {
+                    //if (s_objects[o_id]->GetId() == -1) continue;
+                    s_objects[o_id]->Draw(MemDC, rectSize, offset);
                 }
 
                 // 메인플레이어 좌표 표시
                     // 폰트를 선택하고 이전 폰트를 저장
-                hOldFont = (HFONT)SelectObject(MemDC, GetFont());
-                RECT rect = { 0, 100, 1000, 300 }; // 텍스트가 그려질 사각형 영역
-                TCHAR text[70];
+                hOldFont = (HFONT)SelectObject(MemDC, GetFontBig());
+                RECT rect = { 0, 0, 1000, 1000 }; // 텍스트가 그려질 사각형 영역
+                TCHAR text[256];
                 SetTextColor(MemDC, COLORREF(rgbBlue));
-                _stprintf_s(text, _T("좌표 : (%d, %d) , 생성된 객체 : %d "), mainPos.x, mainPos.y, gGameFrameWork.GetObjectCount());
-                DrawText(MemDC, text, -1, &rect, DT_CENTER | DT_SINGLELINE);
+                //_stprintf_s(text, _T("좌표 : (%d, %d) , 생성된 객체 : %d "), mainPos.x, mainPos.y, gGameFrameWork.GetObjectCount());
+                {
+                    WCHAR* str = CharToWCHAR(serverFramework.m_mainPlayerName.c_str());
+                    _stprintf_s(text, _T("[%s]\nHP.(%d / %d)\nLv.%d\nEXP.%d\n좌표 : (%d, %d)"), 
+                                        str, s_objects[mainPlayer_Id]->m_hp, s_objects[mainPlayer_Id]->m_maxhp, s_objects[mainPlayer_Id]->m_level, s_objects[mainPlayer_Id]->m_exp, mainPos.x, mainPos.y);
+                    free(str);
+                }
+                DrawText(MemDC, text, -1, &rect, DT_TOP | DT_WORDBREAK);
+
+
+                hOldFont = (HFONT)SelectObject(MemDC, GetFontSmall());
+                SetTextColor(MemDC, COLORREF(rgbBlack));
+                auto& vChat =gGameFrameWork.GetChatingBuffer();
+                int sp = 0;
+                for (auto& chat : vChat) {
+                    WCHAR* str = CharToWCHAR(chat.c_str());
+                    _stprintf_s(text, _T("%s"), str);
+                    rect = { 0, 250 + (sp * 60), 1000, 350 + (sp * 60) }; // 텍스트가 그려질 사각형 영역
+                    DrawText(MemDC, text, -1, &rect, DT_TOP | DT_WORDBREAK);
+                    //TextOut(MemDC, 0, 250, text, lstrlenW(text));
+                    sp++;
+                    free(str);
+                }
+
             }
 
             // 리소스 정리

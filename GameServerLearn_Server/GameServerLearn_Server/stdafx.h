@@ -16,10 +16,13 @@
 #include <concurrent_priority_queue.h>
 #include <chrono>
 
+#include "include/lua.hpp"
+
 #include "../../Common.h"
 
 #pragma comment(lib,"WS2_32.LIB")
 #pragma comment(lib, "MSWSock.lib")
+#pragma comment(lib, "lua54.lib")
 
 using namespace Concurrency;
 

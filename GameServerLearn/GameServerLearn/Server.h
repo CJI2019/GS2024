@@ -38,5 +38,7 @@ public:
 
 	CHAR packet_buf[BUFSIZE];
 	int remain_recv_byte;
+
+	std::string m_mainPlayerName;
 };
 

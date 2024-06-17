@@ -1,6 +1,8 @@
 #pragma once
 #include "DataBase.h"
+#include "Sector.h"
 #include "ClientInfo.h"
+
 
 #define serverFramework Server::GetInstance()
 
@@ -9,7 +11,6 @@ class Timer_Event {
 public:
 	Timer_Event() {}
 	~Timer_Event() {}
-
 public:
 	std::chrono::system_clock::time_point m_start_Time;
 	TIMER_EVENT_TYPE m_event_type;
@@ -31,13 +32,14 @@ public:
 	}
 	~Server();
 	static void Worker_Thread();
+	static void Timer_Thread();
 	static void error_display(const char* msg, int err_no);
 
 	int Get_new_clientId();
 	void Accept_Logic(OVERLAPPED_EX* o_alloc);
 
 	void Init();
-	void Accept();
+	void Start();
 	void Disconnect(int c_id);
 
 	HANDLE& GetHandle() { return m_hiocp; }
@@ -52,13 +54,11 @@ protected:
 
 	array<shared_ptr<Object>, MAX_USER + MAX_NPC> m_aObjectInfos;
 
-	UINT m_iClient_count = 0; //접속한 개수가 아닌 접속했던 클라의 개수
-
 	Sector m_Sector;
 public:
 	//Timer_Queue
 	concurrent_priority_queue<Timer_Event>& GetTimerQueue() { return m_timerQueue; }
-	void PushTimer(TIMER_EVENT_TYPE event_type, int object_id);
+	void PushTimer(TIMER_EVENT_TYPE event_type, int object_id, std::chrono::seconds sec);
 
 	array<shared_ptr<Object>, MAX_USER + MAX_NPC>& GetObjectInfos() { return m_aObjectInfos; }
 
