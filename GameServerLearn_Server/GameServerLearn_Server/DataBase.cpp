@@ -62,8 +62,11 @@ void DataBase::DB_Connect()
 
     SQLSetConnectAttr(m_HDBC, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
     char odbc_id[256];
-    cout << "DB : ";
-    std::cin >> odbc_id; // odbc_game_server_2019182042
+    cout << "DB ('y' key is CJI) : ";
+    std::cin >> odbc_id;
+    if (odbc_id[0] == 'y') {
+        strncpy(odbc_id, "odbc_game_server_2019182042", 28);
+    }
     auto p = CharToWCHAR(odbc_id);
     // Connect to data source  
     retcode = SQLConnect(m_HDBC, (SQLWCHAR*)p, SQL_NTS, (SQLWCHAR*)NULL, 0, NULL, 0);
@@ -75,6 +78,7 @@ void DataBase::DB_Connect()
     }
     else {
         cout << "DB Connect Fail" << endl;
+        exit(0);
     }
 }
 
