@@ -47,7 +47,7 @@ public:
 protected:
 	SOCKET m_Server_sock;
 	SOCKET m_cSock;
-	OVERLAPPED_EX m_over;
+	OVERLAPPED_EX m_Accept_over;
 	HANDLE m_hiocp;
 
 	concurrent_priority_queue<Timer_Event> m_timerQueue;

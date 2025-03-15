@@ -138,7 +138,9 @@ void GameFrameWork::Update(float elapsedTime)
 
 	KeyInput(elapsedTime);
 
-	FindNearestObject();
+	FindNearestObject(); 
+	//현재 서버에서 공격 처리를 하므로, 가장 가까운 상대를 골라내는 작업만함.
+	//  -> 이미 서버에서 골라냈는데 동일한 작업을 두번하므로 이는 빼고 서버에서 패킷을 받도록 바꿔야함.
 
 	//auto Attack
 	float m_attackCooltime = 0.0f;

@@ -76,8 +76,8 @@ void Server::Init()
 	m_hiocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
 	CreateIoCompletionPort(reinterpret_cast<HANDLE>(m_Server_sock), m_hiocp, 9999, 0);
 	m_cSock = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
-	m_over.io_type = IO_TYPE::IO_ACCEPT;
-	AcceptEx(m_Server_sock, m_cSock, m_over.send_buf, 0, addr_size + 16, addr_size + 16, 0, &m_over.over);
+	m_Accept_over.io_type = IO_TYPE::IO_ACCEPT;
+	AcceptEx(m_Server_sock, m_cSock, m_Accept_over.send_buf, 0, addr_size + 16, addr_size + 16, 0, &m_Accept_over.over);
 
 }
 
@@ -275,9 +275,9 @@ void Server::Accept_Logic(OVERLAPPED_EX* o_alloc)
 		cout << "Full of users.\n";
 	}
 
-	ZeroMemory(&m_over.over, sizeof(m_over.over));
+	ZeroMemory(&m_Accept_over.over, sizeof(m_Accept_over.over));
 	int addr_size = sizeof(SOCKADDR_IN);
-	AcceptEx(m_Server_sock, m_cSock, m_over.send_buf, 0, addr_size + 16, addr_size + 16, 0, &m_over.over);
+	AcceptEx(m_Server_sock, m_cSock, m_Accept_over.send_buf, 0, addr_size + 16, addr_size + 16, 0, &m_Accept_over.over);
 
 	// 클라이언트 주소 출력
 	sockaddr_in* localSockaddr = NULL;
