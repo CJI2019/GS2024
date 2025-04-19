@@ -75,7 +75,7 @@ void Player::Move(DWORD Dir,float elapsedTime)
         packet.direction = static_cast<char>(p_Dir);
         serverFramework.SendReserve(&packet, packet.size);
 
-        m_fMoveLimit = 1.0f;
+        m_fMoveLimit = 0.1f;
     }
 
 

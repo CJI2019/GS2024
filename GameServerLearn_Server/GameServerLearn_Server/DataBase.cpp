@@ -62,11 +62,17 @@ void DataBase::DB_Connect()
 
     SQLSetConnectAttr(m_HDBC, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
     char odbc_id[256];
-    cout << "DB ('y' key is CJI) : ";
+    cout << "DB ('y' 키 입력시 관리자로 접속합니다. 접속이 불가능하다면 'n'키를 입력해주세요.) : ";
     std::cin >> odbc_id;
     if (odbc_id[0] == 'y') {
         strncpy(odbc_id, "odbc_game_server_2019182042", 28);
     }
+    else{
+        m_isConnect = false;
+        return;
+    }
+    m_isConnect = true;
+
     auto p = CharToWCHAR(odbc_id);
     // Connect to data source  
     retcode = SQLConnect(m_HDBC, (SQLWCHAR*)p, SQL_NTS, (SQLWCHAR*)NULL, 0, NULL, 0);
@@ -77,13 +83,19 @@ void DataBase::DB_Connect()
         cout << "DB Connect Complete" << endl;
     }
     else {
-        cout << "DB Connect Fail" << endl;
-        exit(0);
+        cout << "DB 접속에 실패 했습니다. DB와 연결하지 않은 상태로 진입합니다." << endl;
+        m_isConnect = false;
+        return;
+        //exit(0);
     }
 }
 
-void DataBase::DB_Process(void* pData, DB_COMMAND command)
+bool DataBase::DB_Process(void* pData, DB_COMMAND command)
 {
+    if (!m_isConnect) {
+        return false;
+    }
+
     SQLRETURN retcode;
     SQLHSTMT hstmt = nullptr;
     SQLWCHAR szuser_id[NAME_SIZE*2]; //wchar_t 변수 원소당 2바이트임에 주의
@@ -202,6 +214,7 @@ void DataBase::DB_Process(void* pData, DB_COMMAND command)
         SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
     }
 
+    return true;
 }
 
 void PrintError(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode)

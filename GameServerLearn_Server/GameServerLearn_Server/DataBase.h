@@ -34,9 +34,10 @@ protected:
 	DB_COMMAND m_DBcommand;
 
 	mutex m_mtxHstmt;
+	bool m_isConnect;
 public:
 	void DB_Init();
 	void DB_Connect();
-	void DB_Process(void* pData, DB_COMMAND command);
+	bool DB_Process(void* pData, DB_COMMAND command);
 
 };

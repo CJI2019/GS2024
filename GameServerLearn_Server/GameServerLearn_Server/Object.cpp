@@ -37,10 +37,6 @@ void Object::Send_remove_player(int c_id)
     if (m_viewList.count(c_id) != 0) {
         m_viewList.erase(c_id);
     }
-    else {
-        m_mtxView.unlock();
-        return;
-    }
     m_mtxView.unlock();
 }
 

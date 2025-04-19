@@ -8,7 +8,7 @@ public:
 	Sector();
 	~Sector();
 
-	std::unordered_set<int> GetCurrentSector(Vector2& sec_pos);
+	std::unordered_set<int> GetRangeSector(Vector2& sec_pos);
 	Vector2 AllocSectorId(Vector2& pl_pos, int c_id);
 
 	void PushSectorId(Vector2& sec_pos, int c_id);

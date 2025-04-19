@@ -11,7 +11,7 @@ Sector::~Sector()
 {
 }
 
-std::unordered_set<int> Sector::GetCurrentSector(Vector2& sec_pos)
+std::unordered_set<int> Sector::GetRangeSector(Vector2& sec_pos)
 {
 	std::lock_guard<std::mutex> sl(m_mtxSector);
 	std::unordered_set<int> pSector;

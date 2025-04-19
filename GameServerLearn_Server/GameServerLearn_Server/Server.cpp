@@ -8,17 +8,18 @@
 
 Server::Server()
 {
+	CLua::isActive = false; // LUA 스크립트 사용 비활성화
 	DB; // DB 접속
-	cout << "DB 접속 완료\n";
 	Init();
+
 	for (int i = 0; i < MAX_USER;++i) {
 		m_aObjectInfos[i] = std::make_shared<ClientInfo>();
 		m_aObjectInfos[i]->m_gameinfo.m_visual = visual_player;
 
-		// 유저는 로그인 할때 스크립트 정보를 저장하도록 변경해야함.
-		m_aObjectInfos[i]->m_cLua.SetScriptInfo(i); 
+		m_aObjectInfos[i]->m_cLua.SetScriptInfo(i);
 	}
 
+	cout << "20만개의 NPC 초기화 진행중(다소 시간이 소요됩니다.)\n" << endl;
 	for (int i = MAX_USER; i < MAX_USER+MAX_NPC;++i) {
 		m_aObjectInfos[i] = std::make_shared<NPC>();
 		m_aObjectInfos[i]->m_id = i;
@@ -29,17 +30,12 @@ Server::Server()
 
 		m_aObjectInfos[i]->m_cLua.SetScriptInfo(i);
 		m_aObjectInfos[i]->m_name = m_aObjectInfos[i]->m_cLua.m_name;
+		if (i % ((MAX_USER + MAX_NPC) / 5) == 0) {
+			cout << "현재 초기화된 NPC 개체 수 : " << i << endl;
+		}
 	}
 
-	/*DB_ID_INFO d_data;
-	d_data.m_strUserid = "2019182042";
-	DB.DB_Process(&d_data,LOGIN);
-	cout << d_data.m_strUserid << " " << d_data.m_xPos << "," << d_data.m_yPos << endl;*/
-	/*for (int i = MAX_USER; i < MAX_USER + MAX_NPC;++i) {
-		PushTimer(TIMER_EVENT_TYPE::TE_NPC_RANDOM_MOVE, m_aObjectInfos[i]->m_id);
-	}*/ 
-
-	cout << "Object 초기화 완료\n" << endl;
+	cout << "\nNPC 초기화 완료\n" << endl;
 }
 
 Server::~Server()
@@ -129,9 +125,6 @@ void Server::Timer_Thread()
 		OVERLAPPED_EX* over_ex = new OVERLAPPED_EX;
 		switch (t_event.m_event_type) {
 		case TE_NPC_RANDOM_MOVE: {
-			/*if (t_event.m_object_id == 200000) {
-				cout << system_clock::now() << endl;
-			}*/
 			over_ex->io_type = IO_NPC_MOVE;
 			break;
 		}
@@ -181,7 +174,7 @@ void Server::Worker_Thread( )
 		if (recvByte == 0 && 
 			(o_alloc->io_type == IO_RECV || o_alloc->io_type == IO_SEND))
 		{
-			cout << "zzz 종료\n";
+			cout << "종료\n";
 			sf.m_aObjectInfos[key]->Exit();
 			//sf.Disconnect(static_cast<int>(key));
 			if (o_alloc->io_type == IO_SEND) {
@@ -270,6 +263,7 @@ void Server::Accept_Logic(OVERLAPPED_EX* o_alloc)
 			m_hiocp, client_Id, 0);
 		cl_info->Recv();
 		m_cSock = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
+		cout << "UserId 할당 - " << client_Id << endl;
 	}
 	else {
 		cout << "Full of users.\n";

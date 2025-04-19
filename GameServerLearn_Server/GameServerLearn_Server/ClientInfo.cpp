@@ -145,6 +145,7 @@ void ClientInfo::Exit()
     d_data.m_maxhp = m_gameinfo.m_maxhp;
     d_data.m_level = m_gameinfo.m_level;
     d_data.m_exp = m_gameinfo.m_exp;
+    
     DB.DB_Process(&d_data, EXIT);
 
     serverFramework.Disconnect(m_id);
@@ -160,10 +161,13 @@ void ClientInfo::Send_login()
     // 1. DB¿¡¼­ ID Á¤º¸°¡ ÀÖ´ÂÁö È®ÀÎÇÑ´Ù.
     DB_ID_INFO d_data;
     d_data.m_strUserid = m_name;
-    DB.DB_Process(&d_data, LOGIN);
+    if (!DB.DB_Process(&d_data, LOGIN)) {
+        d_data.m_xPos = -1;
+    }
+
     if (d_data.m_xPos == -1) { // 2. Á¤º¸°¡ ¾ø´Ù¸é DB¿¡ ID µî·Ï.
-        d_data.m_xPos = Rd.Generate_Random_int(ROW_X);
-        d_data.m_yPos = Rd.Generate_Random_int(COL_Y);
+        d_data.m_xPos = 55;//Rd.Generate_Random_int(ROW_X);
+        d_data.m_yPos = 55;//Rd.Generate_Random_int(COL_Y);
         d_data.m_hp = 100;
         d_data.m_maxhp = 100;
         d_data.m_level = 1;
@@ -233,7 +237,7 @@ void ClientInfo::Send_move_player(void* packet) // ±»ÀÌ ¸Å°³º¯¼ö¸¦ ¹ÞÀ» ÇÊ¿ä´Â Ç
     auto& sectors = serverFramework.GetSector();
 
     // SectorÀÇ °æ°è¼±¿¡¼­ view¿¡ ´ã±æ ¼ö ÀÖ´Â ´Ù¸¥ SectorÀÇ °´Ã¼µµ º¸ÀÌµµ·ÏÇÑ´Ù.
-    std::unordered_set<int> cur_sector = sectors.GetCurrentSector(m_sector_Pos);
+    std::unordered_set<int> cur_sector = sectors.GetRangeSector(m_sector_Pos);
     //std::cout << "cur_sector¿¡ Á¸ÀçÇÏ´Â °´Ã¼ÀÇ °³¼ö => " << cur_sector.size() << std::endl;
     // °°Àº ¼½ÅÍ ³»¿¡¼­¸¸ º¸ÀÌ´Â °´Ã¼¸¦ ¼±º°ÇÏµµ·Ï ÇÑ´Ù.
     for (auto& c_id : cur_sector) { // º¸ÀÌ´Â °´Ã¼ ¼±º°

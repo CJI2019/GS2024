@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "CLua.h"
 
+bool CLua::isActive = true;
+
 CLua::CLua()
 {
+	if (!isActive) return;
 	m_lua_State = luaL_newstate();
 	luaL_openlibs(m_lua_State);
 	luaL_loadfile(m_lua_State, "Object.lua");
@@ -11,6 +14,7 @@ CLua::CLua()
 
 CLua::~CLua()
 {
+	if (!isActive) return;
 	lua_close(m_lua_State);
 }
 
@@ -32,6 +36,11 @@ void CLua::Register_Functions(lua_State* L)
 
 void CLua::SetScriptInfo(int id)
 {
+	if (!isActive) {
+		m_name = "obj_" + std::to_string(id);
+		return;
+	}
+
 	lua_getglobal(m_lua_State, "Set_info");
 	lua_pushinteger(m_lua_State, id);
 	if (ErrorCheck(lua_pcall(m_lua_State, 1, 1, 0))) {

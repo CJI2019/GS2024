@@ -58,6 +58,19 @@ void NPC::Move(char dir)
 	// 자신을 시야에 둔 플레이어에게만 신경 쓰면됨.
 	// 단, 이동시에 섹터 이동 또한 필요하다.
 	// 플레이어는 섹터를 기준으로 View를 만든다.
+	auto& sectors = serverFramework.GetSector();
+	std::unordered_set<int> cur_sector = sectors.GetRangeSector(m_sector_Pos);
+	for (auto& c_id : cur_sector) { // 보이는 객체 선별
+		if (infos[c_id]->m_cur_state != STATE::ST_INGAME) continue;
+		if (c_id == m_id) continue;
+		if (c_id >= MAX_USER) { continue; }
+		if (InViewRange(c_id) && old_View.count(c_id) == 0) {
+			infos[c_id]->Send_add_object(m_id, m_gameinfo.m_visual);
+			Send_add_object(c_id, infos[c_id]->m_gameinfo.m_visual);
+			new_View.insert(c_id);
+		}
+	}
+
 	for (auto& cl_id : old_View) {
 		if (m_cur_state != STATE::ST_INGAME) continue;
 		// NPC 객체와 id가 겹칠일은 없지만 

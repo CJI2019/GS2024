@@ -75,6 +75,8 @@ public:
 		io_type = IO_TYPE::IO_SEND;
 		ZeroMemory(&over, sizeof(over));
 		memcpy(send_buf, packet, packet[0]);
+		// 2025/03/22 packet[0]는 1바이트 char 자료형. 하지만 현재 프로토콜에 정의된 사이즈를 나타내는 변수는 unsigned short 2바이트 자료형임.
+		// 프로토콜에 정의된 패킷의 크기가 255를 넘어가게 되면 오류가 발생할 것.
 	}
 
 	void SetSendPacket(char* packet)
