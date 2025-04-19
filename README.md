@@ -5,7 +5,7 @@ WindowsAPI로 렌더링 되는 클라이언트를 제작했습니다.
 
 ## 개발기간
 24.05 ~ 24.06 (약4주)
-
+![image](https://github.com/CJI2019/GS2024/blob/master/image/game.png)
 ## 실행방법
 1.Server 실행 후 명령어를 입력합니다.
 2.NPC 초기화 완료 시에 Game을 실행합니다.
